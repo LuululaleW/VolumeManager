@@ -85,7 +85,14 @@ fun AboutDialog(
                                 "https://github.com/yume-chan/VolumeManager".toUri()
                             )
                             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            context.startActivity(intent)
+                            runCatching { context.startActivity(intent) }
+                                .onFailure {
+                                    Toast.makeText(
+                                        context,
+                                        R.string.shizuku_unable_to_open,
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {

@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.setViewTreeLifecycleOwner
@@ -93,10 +94,13 @@ class Service : AccessibilityService() {
                 animateAlpha(layoutParams.alpha, 0f, ANIMATION_DURATION) {
                     if (!viewVisible) {
                         Log.i(TAG, "remove view")
-                        view!!.background = null
-                        lifecycle?.currentState = Lifecycle.State.DESTROYED
-                        windowManager.removeView(view)
-                        view = null
+                        view?.let { currentView ->
+                            currentView.background = null
+                            lifecycle?.currentState = Lifecycle.State.DESTROYED
+                            runCatching { windowManager.removeView(currentView) }
+                                .onFailure { Log.w(TAG, "Failed to remove overlay", it) }
+                            view = null
+                        }
                     }
                 }
                 viewVisible = false
@@ -171,12 +175,19 @@ class Service : AccessibilityService() {
 
                 Log.i(TAG, "onAttachedToWindow manufacturer: ${Build.MANUFACTURER}")
 
-                @Suppress("SpellCheckingInspection") if (windowManager.isCrossWindowBlurEnabled && isHardwareAccelerated && Build.MANUFACTURER != "realme") {
-                    background =
-                        Reflect.on(rootSurfaceControl).call("createBackgroundBlurDrawable").apply {
-                            call("setBlurRadius", 200)
-                            call("setCornerRadius", 40f)
-                        }.get()
+                @Suppress("SpellCheckingInspection")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                    windowManager.isCrossWindowBlurEnabled &&
+                    isHardwareAccelerated &&
+                    Build.MANUFACTURER != "realme"
+                ) {
+                    runCatching {
+                        background =
+                            Reflect.on(rootSurfaceControl).call("createBackgroundBlurDrawable").apply {
+                                call("setBlurRadius", 200)
+                                call("setCornerRadius", 40f)
+                            }.get()
+                    }.onFailure { Log.w(TAG, "Failed to create blur background", it) }
                 }
 
                 this@Service.handler.startIdleTimer()
@@ -250,9 +261,15 @@ class Service : AccessibilityService() {
         if (view == null) {
             Log.i(TAG, "add view")
             // The view doesn't respond to input events if reused
-            view = createView()
+            val newView = createView()
             layoutParams.alpha = 0f
-            windowManager.addView(view, layoutParams)
+            val added = runCatching { windowManager.addView(newView, layoutParams) }
+                .onFailure { Log.e(TAG, "Failed to add overlay", it) }
+                .isSuccess
+            if (!added) {
+                return
+            }
+            view = newView
         }
 
         if (!viewVisible) {
@@ -290,10 +307,10 @@ class Service : AccessibilityService() {
         animator.interpolator = AccelerateDecelerateInterpolator()
 
         animator.addUpdateListener { animation ->
-            if (view != null) {
-                layoutParams.alpha = animation.animatedValue as Float
-                windowManager.updateViewLayout(view, layoutParams)
-            }
+            val currentView = view ?: return@addUpdateListener
+            layoutParams.alpha = animation.animatedValue as Float
+            runCatching { windowManager.updateViewLayout(currentView, layoutParams) }
+                .onFailure { Log.w(TAG, "Failed to update overlay", it) }
         }
 
         animator.addListener(object : Animator.AnimatorListener {
@@ -307,7 +324,10 @@ class Service : AccessibilityService() {
                 }
 
                 layoutParams.alpha = to
-                windowManager.updateViewLayout(view, layoutParams)
+                view?.let { currentView ->
+                    runCatching { windowManager.updateViewLayout(currentView, layoutParams) }
+                        .onFailure { Log.w(TAG, "Failed to update overlay", it) }
+                }
 
                 onEnd?.invoke()
             }
@@ -323,6 +343,8 @@ class Service : AccessibilityService() {
         currentAnimator = animator
     }
 
+    private var receiverRegistered = false
+
     private val broadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             Log.i(TAG, "onReceive ${intent.action}")
@@ -335,12 +357,25 @@ class Service : AccessibilityService() {
     override fun onServiceConnected() {
         Log.i(TAG, "onServiceConnected")
 
-        startForegroundNotification()
+        runCatching { startForegroundNotification() }
+            .onFailure {
+                Log.e(TAG, "Failed to start foreground service", it)
+                stopSelf()
+                return
+            }
 
         app = super.getApplication() as MyApplication
         manager = app.manager
 
-        registerReceiver(broadcastReceiver, IntentFilter(ACTION_SHOW_VIEW), RECEIVER_NOT_EXPORTED)
+        if (!receiverRegistered) {
+            ContextCompat.registerReceiver(
+                this,
+                broadcastReceiver,
+                IntentFilter(ACTION_SHOW_VIEW),
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+            receiverRegistered = true
+        }
 
         preferenceScope?.cancel()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -419,13 +454,24 @@ class Service : AccessibilityService() {
         stopForeground(STOP_FOREGROUND_REMOVE)
         Toast.makeText(this, R.string.accessibility_service_died, Toast.LENGTH_SHORT).show()
 
-        unregisterReceiver(broadcastReceiver)
+        if (receiverRegistered) {
+            try {
+                unregisterReceiver(broadcastReceiver)
+            } catch (e: IllegalArgumentException) {
+                Log.w(TAG, "Receiver was already unregistered", e)
+            }
+            receiverRegistered = false
+        }
         super.onDestroy()
     }
 
     val activityTaskManager by lazy { ActivityTaskManagerProxy(this) }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
+        if (!::manager.isInitialized || !::app.isInitialized) {
+            return false
+        }
+
         Log.i(
             TAG,
             "onKeyEvent action = ${event.action}, key code = ${event.keyCode}, shizuku permission = ${manager.shizukuStatus}"

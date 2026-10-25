@@ -3,6 +3,7 @@ package moe.chensi.volume
 import android.content.Context
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
+import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -20,6 +21,8 @@ internal class FloatingButton(
     sizeDp: Int
 ) {
     companion object {
+        private const val TAG = "FloatingButton"
+
         private const val MIN_ICON_SIZE_DP = 24
         private const val ICON_PADDING_DP = 16
         private const val COLLAPSED_ALPHA = 0.5f
@@ -93,7 +96,13 @@ internal class FloatingButton(
             setOnTouchListener { _, event -> onTouch(event) }
         }
 
-        windowManager.addView(button, params)
+        val added = runCatching { windowManager.addView(button, params) }
+            .onFailure { Log.e(TAG, "Failed to show floating button", it) }
+            .isSuccess
+        if (!added) {
+            return
+        }
+
         view = button
         icon = image
         background = shape
@@ -103,7 +112,8 @@ internal class FloatingButton(
 
     fun hide() {
         val button = view ?: return
-        windowManager.removeView(button)
+        runCatching { windowManager.removeView(button) }
+            .onFailure { Log.w(TAG, "Failed to hide floating button", it) }
         view = null
         icon = null
         background = null
@@ -267,7 +277,8 @@ internal class FloatingButton(
     private fun updateLayout() {
         val button = view ?: return
         val params = layoutParams ?: return
-        windowManager.updateViewLayout(button, params)
+        runCatching { windowManager.updateViewLayout(button, params) }
+            .onFailure { Log.w(TAG, "Failed to update floating button", it) }
     }
 
     private fun dp(value: Int): Int =

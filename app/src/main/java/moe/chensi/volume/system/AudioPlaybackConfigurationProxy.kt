@@ -1,10 +1,8 @@
 package moe.chensi.volume.system
 
 import android.media.AudioPlaybackConfiguration
-import android.os.DeadObjectException
+import android.util.Log
 import org.joor.Reflect
-import org.joor.ReflectException
-import java.lang.reflect.InvocationTargetException
 
 class AudioPlaybackConfigurationProxy(raw: AudioPlaybackConfiguration) {
     enum class PlayerState(val value: Int) {
@@ -21,29 +19,43 @@ class AudioPlaybackConfigurationProxy(raw: AudioPlaybackConfiguration) {
     }
 
     companion object {
-        val classReflect: Reflect = Reflect.onClass(AudioPlaybackConfiguration::class.java)
+        private const val TAG = "AudioPlaybackConfig"
+
+        private val classReflect: Reflect = Reflect.onClass(AudioPlaybackConfiguration::class.java)
     }
 
     private val reflect = Reflect.on(raw)
 
-    private val player = reflect.call("getIPlayer")
+    private val player by lazy {
+        runCatching { reflect.call("getIPlayer") }
+            .onFailure { Log.w(TAG, "Player proxy is unavailable", it) }
+            .getOrNull()
+    }
 
     val hasPlayer
-        get() = player.get<Any>() != null
+        get() = runCatching { player?.get<Any>() != null }.getOrDefault(false)
 
-    val clientPid: Int = reflect.get("mClientPid")
+    val clientPid: Int
+        get() = runCatching { reflect.get<Int>("mClientPid") }.getOrDefault(-1)
 
-    val playerType: Int = reflect.get("mPlayerType")
+    val playerType: Int
+        get() = runCatching { reflect.get<Int>("mPlayerType") }.getOrDefault(-1)
 
     val playerTypeName: String by lazy {
-        classReflect.call("toLogFriendlyPlayerType", playerType).get()
+        runCatching {
+            classReflect.call("toLogFriendlyPlayerType", playerType).get<String>()
+        }.getOrDefault("Unknown")
     }
 
     val playerState
-        get() = reflect.get<Int>("mPlayerState").toPlayerState()
+        get() = runCatching {
+            reflect.get<Int>("mPlayerState").toPlayerState()
+        }.getOrDefault(PlayerState.Unknown)
 
     val playerStateName: String by lazy {
-        classReflect.call("playerStateToString", playerState.value).get()
+        runCatching {
+            classReflect.call("playerStateToString", playerState.value).get<String>()
+        }.getOrDefault(PlayerState.Unknown.name)
     }
 
     val isPlaying: Boolean
@@ -57,15 +69,16 @@ class AudioPlaybackConfigurationProxy(raw: AudioPlaybackConfiguration) {
 
     fun setVolume(value: Float): Boolean {
         return try {
-            player.call("setVolume", value)
-            true
-        } catch (e: ReflectException) {
-            val cause = e.cause
-            if (cause is InvocationTargetException && cause.cause is DeadObjectException) {
+            val playerReflect = player
+            if (playerReflect == null || playerReflect.get<Any>() == null) {
                 false
             } else {
-                throw e
+                playerReflect.call("setVolume", value)
+                true
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to set player volume", e)
+            false
         }
     }
 }

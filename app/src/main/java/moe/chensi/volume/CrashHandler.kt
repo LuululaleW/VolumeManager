@@ -18,6 +18,7 @@ object CrashHandler : Thread.UncaughtExceptionHandler {
     private var context: Context? = null
     private var crashFile: File? = null
 
+    @Synchronized
     fun ensureInitialized(context: Context) {
         if (crashFile != null) return
 
@@ -28,20 +29,22 @@ object CrashHandler : Thread.UncaughtExceptionHandler {
     }
 
     fun hasCrashReport(): Boolean {
-        return crashFile?.exists() ?: false
+        return runCatching { crashFile?.exists() == true }.getOrDefault(false)
     }
 
     fun readCrashReport(): String? {
         val file = crashFile ?: return null
-        return if (file.exists()) {
-            file.readText()
-        } else {
+        return runCatching {
+            if (file.exists()) file.readText() else null
+        }.getOrElse {
+            Log.e(TAG, "Failed to read crash report", it)
             null
         }
     }
 
     fun clearCrashReport() {
-        crashFile?.delete()
+        runCatching { crashFile?.delete() }
+            .onFailure { Log.e(TAG, "Failed to clear crash report", it) }
     }
 
     override fun uncaughtException(t: Thread, e: Throwable) {

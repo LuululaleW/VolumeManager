@@ -5,17 +5,24 @@ import android.app.ActivityManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.ActivityInfo
+import android.util.Log
 import moe.chensi.volume.EnableBinderProxy
 import moe.chensi.volume.ToggleableBinderProxy
 import org.joor.Reflect
 
 class ActivityTaskManagerProxy(context: Context) {
+    companion object {
+        private const val TAG = "ActivityTaskManagerProxy"
+    }
+
     @SuppressLint("WrongConstant")
     val activityTaskManager: Reflect = context.getSystemService("activity_task").run(Reflect::on)
 
     init {
-        val service = activityTaskManager.call("getService").get<Any>()
-        ToggleableBinderProxy.wrap(service)
+        runCatching {
+            val service = activityTaskManager.call("getService").get<Any>()
+            ToggleableBinderProxy.wrap(service)
+        }.onFailure { Log.w(TAG, "Failed to wrap ActivityTaskManager service", it) }
     }
 
     data class Task(val app: String, val activityName: ComponentName)

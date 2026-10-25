@@ -1,17 +1,22 @@
 package moe.chensi.volume.data
 
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 class AppPreferencesStore(private val dataStore: DataStore<Preferences>) {
     companion object {
+        private const val TAG = "AppPreferencesStore"
+
         private val key = stringPreferencesKey("apps")
 
         private val json = Json { ignoreUnknownKeys = true }
@@ -75,18 +80,31 @@ class AppPreferencesStore(private val dataStore: DataStore<Preferences>) {
         var first = true
 
         scope.launch {
-            dataStore.data.collect { preferences ->
-                val valueJson = preferences[key]
-                if (valueJson != null) {
-                    synchronized(lock) {
-                        state = json.decodeFromString<SerializedState>(valueJson)
-                    }
+            dataStore.data
+                .catch { error ->
+                    Log.e(TAG, "Failed to read preferences", error)
+                    emit(emptyPreferences())
                 }
+                .collect { preferences ->
+                    val valueJson = preferences[key]
+                    if (valueJson != null) {
+                        val decoded = runCatching {
+                            json.decodeFromString<SerializedState>(valueJson)
+                        }.onFailure {
+                            Log.e(TAG, "Failed to decode preferences, keeping last state", it)
+                        }.getOrNull()
 
-                onChange(first)
-                @Suppress("AssignedValueIsNeverRead")
-                first = false
-            }
+                        if (decoded != null) {
+                            synchronized(lock) {
+                                state = decoded
+                            }
+                        }
+                    }
+
+                    onChange(first)
+                    @Suppress("AssignedValueIsNeverRead")
+                    first = false
+                }
         }
     }
 
@@ -106,8 +124,12 @@ class AppPreferencesStore(private val dataStore: DataStore<Preferences>) {
 
     fun save() {
         scope.launch {
-            dataStore.edit { preferences ->
-                preferences[key] = Json.encodeToString(state)
+            runCatching {
+                dataStore.edit { preferences ->
+                    preferences[key] = Json.encodeToString(state)
+                }
+            }.onFailure {
+                Log.e(TAG, "Failed to save preferences", it)
             }
         }
     }

@@ -501,7 +501,7 @@ class MainActivity : ComponentActivity() {
                 grantSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS)
             } catch (e: Exception) {
                 Log.e(TAG, "Can't add WRITE_SECURE_SETTINGS permission", e)
-                errorInfo = ErrorInfo(e.message!!, e.stackTraceToString())
+                errorInfo = ErrorInfo(e.message ?: e.javaClass.simpleName, e.stackTraceToString())
                 return@LaunchedEffect
             }
 

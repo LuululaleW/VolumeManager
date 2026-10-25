@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.media.AudioPlaybackConfiguration
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -24,6 +25,8 @@ import rikka.shizuku.ShizukuProvider
 @SuppressLint("PrivateApi")
 class Manager(context: Context, dataStore: DataStore<Preferences>) {
     companion object {
+        private const val TAG = "VolumeManager.Manager"
+
         const val SHIZUKU_PACKAGE_NAME = "moe.shizuku.privileged.api"
     }
 
@@ -35,14 +38,22 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
     val shizukuStatus
         get() = _shizukuStatus
 
-    val audioManager = context.getSystemService(AudioManager::class.java)!!.apply {
-        Reflect.onClass(AudioManager::class.java).call("getService").get<Any>()
-            .apply { ToggleableBinderProxy.wrap(this) }
+    val audioManager = context.getSystemService(AudioManager::class.java)!!.also {
+        runCatching {
+            val service = Reflect.onClass(AudioManager::class.java).call("getService").get<Any>()
+            ToggleableBinderProxy.wrap(service)
+        }.onFailure { error ->
+            Log.e(TAG, "Failed to wrap AudioManager service", error)
+        }
     }
 
-    val activityManager = context.getSystemService(ActivityManager::class.java)!!.apply {
-        Reflect.onClass(ActivityManager::class.java).call("getService").get<Any>()
-            .apply { ToggleableBinderProxy.wrap(this) }
+    val activityManager = context.getSystemService(ActivityManager::class.java)!!.also {
+        runCatching {
+            val service = Reflect.onClass(ActivityManager::class.java).call("getService").get<Any>()
+            ToggleableBinderProxy.wrap(service)
+        }.onFailure { error ->
+            Log.e(TAG, "Failed to wrap ActivityManager service", error)
+        }
     }
     private val packageManager by lazy { PackageManagerProxy.get(context) }
     val notificationManagerProxy = NotificationManagerProxy(context)
@@ -95,27 +106,35 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
 
     @EnableBinderProxy
     private fun initialize() {
-        reloadApps()
+        runCatching { reloadApps() }
+            .onFailure { Log.e(TAG, "Failed to load apps", it) }
 
-        val playbackConfigurations = audioManager.activePlaybackConfigurations
-        processAudioPlaybackConfigurations(playbackConfigurations)
+        runCatching {
+            val playbackConfigurations = audioManager.activePlaybackConfigurations
+            processAudioPlaybackConfigurations(playbackConfigurations)
+        }.onFailure { Log.e(TAG, "Failed to read playback configurations", it) }
 
-        audioManager.registerAudioPlaybackCallback(
-            object : AudioManager.AudioPlaybackCallback() {
-                override fun onPlaybackConfigChanged(configs: MutableList<AudioPlaybackConfiguration>) {
-                    for (app in apps.values) {
-                        app.clearPlayers()
+        runCatching {
+            audioManager.registerAudioPlaybackCallback(
+                object : AudioManager.AudioPlaybackCallback() {
+                    override fun onPlaybackConfigChanged(configs: MutableList<AudioPlaybackConfiguration>) {
+                        for (app in apps.values) {
+                            app.clearPlayers()
+                        }
+                        processAudioPlaybackConfigurations(configs)
                     }
-                    processAudioPlaybackConfigurations(configs)
-                }
-            }, null
-        )
+                }, null
+            )
+        }.onFailure { Log.e(TAG, "Failed to register playback callback", it) }
     }
 
     @SuppressLint("DiscouragedPrivateApi")
     @EnableBinderProxy
     fun processAudioPlaybackConfigurations(configs: List<AudioPlaybackConfiguration>) {
-        val runningProcesses = activityManager.runningAppProcesses
+        val runningProcesses = runCatching { activityManager.runningAppProcesses }
+            .onFailure { Log.e(TAG, "Failed to read running processes", it) }
+            .getOrNull()
+            .orEmpty()
 
         for (config in configs) {
             val proxy = AudioPlaybackConfigurationProxy(config)
@@ -123,7 +142,7 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
             val pid = proxy.clientPid
             val process = runningProcesses.find { process -> process.pid == pid } ?: continue
 
-            val packageName = process.pkgList[0] ?: continue
+            val packageName = process.pkgList?.firstOrNull() ?: continue
             val app = getApp(packageName) ?: continue
 
             app.addPlayer(proxy)

@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import moe.chensi.volume.ui.theme.Typography
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -50,10 +51,11 @@ internal object VolumeChangeObserver {
                     _volumeChangedCount++
                 }
             }
-            registeredContext!!.registerReceiver(
+            ContextCompat.registerReceiver(
+                registeredContext!!,
                 receiver!!,
                 IntentFilter(VOLUME_CHANGED_ACTION),
-                Context.RECEIVER_NOT_EXPORTED
+                ContextCompat.RECEIVER_NOT_EXPORTED
             )
         }
     }

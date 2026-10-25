@@ -206,7 +206,12 @@ private fun RingFooter(
             addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
             addAction(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED)
         }
-        context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
         onDispose {
             context.unregisterReceiver(receiver)
         }

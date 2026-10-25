@@ -5,6 +5,7 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import android.util.Log
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
 import moe.chensi.volume.EnableBinderProxy
@@ -14,6 +15,8 @@ import java.util.WeakHashMap
 
 class PackageManagerProxy private constructor(context: Context) {
     companion object {
+        private const val TAG = "PackageManagerProxy"
+
         private val cache = WeakHashMap<Context, PackageManagerProxy>()
 
         private const val MATCH_ANY_USER = 0x00000400
@@ -29,9 +32,11 @@ class PackageManagerProxy private constructor(context: Context) {
     private val reflect = Reflect.on(packageManager)
 
     init {
-        val service =
-            Reflect.onClass("android.app.ActivityThread").call("getPackageManager").get<Any>()
-        ToggleableBinderProxy.wrap(service)
+        runCatching {
+            val service =
+                Reflect.onClass("android.app.ActivityThread").call("getPackageManager").get<Any>()
+            ToggleableBinderProxy.wrap(service)
+        }.onFailure { Log.w(TAG, "Failed to wrap PackageManager service", it) }
     }
 
     val defaultActivityIcon by lazy { packageManager.defaultActivityIcon }
