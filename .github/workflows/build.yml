@@ -27,7 +27,22 @@ jobs:
           cache: "gradle"
 
       - name: Build
-        run: ./gradlew assembleRelease
+        run: |
+          set -o pipefail
+          ./gradlew assembleRelease --console=plain 2>&1 | tee "$RUNNER_TEMP/gradle.log"
+
+      - name: Report build failure
+        if: failure()
+        run: |
+          log="$RUNNER_TEMP/gradle.log"
+          if [ -f "$log" ]; then
+            grep -E '^e: |error:|FAILURE:|What went wrong|Execution failed for task' "$log" | tail -40 | while IFS= read -r line; do
+              line="${line//'%'/'%25'}"
+              line="${line//$'\r'/'%0D'}"
+              line="${line//$'\n'/'%0A'}"
+              echo "::error title=Gradle failure::$line"
+            done
+          fi
 
       - name: Sign APK
         run: |
