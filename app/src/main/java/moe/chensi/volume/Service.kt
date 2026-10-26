@@ -27,21 +27,12 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.Toast
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.AbstractComposeView
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleRegistry
@@ -56,10 +47,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import moe.chensi.volume.compose.AppVolumeList
 import moe.chensi.volume.compose.SystemVolumePanel
 import moe.chensi.volume.compose.VolumeChangeObserver
-import moe.chensi.volume.compose.VolumeKeyTargetSelector
+import moe.chensi.volume.compose.VolumeKeyPopup
 import moe.chensi.volume.data.App
 import moe.chensi.volume.system.ActivityTaskManagerProxy
 import moe.chensi.volume.ui.theme.VolumeManagerTheme
@@ -245,72 +235,48 @@ class Service : AccessibilityService() {
                     ?.packageName
                     ?.let { manager.apps[it] }
                     ?.takeIf(::isSelectableVolumeKeyApp)
-                val hasActiveApps = manager.apps.values.any(::isVolumeKeyTargetApp)
+                    ?.takeIf { hooksEnabled }
 
                 return VolumeManagerTheme {
-                    Surface(
-                        color = Color(1f, 1f, 1f, 0.3f),
-                        contentColor = MaterialTheme.colorScheme.onSurface,
-                        shape = RoundedCornerShape(40f)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(20.dp, 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (hooksEnabled) {
-                                VolumeKeyTargetSelector(
-                                    selectedApp = selectedApp,
-                                    hasActiveApps = hasActiveApps || selectedApp != null,
-                                    onSelectApp = this@Service::selectAppVolumeTarget,
-                                    onSelectMedia = this@Service::selectMediaVolumeTarget
-                                )
-                            }
-
-                            AppVolumeList(
-                                apps = manager.apps.values,
-                                showAll = false,
-                                selectedVolumeKeyPackage = if (hooksEnabled) {
-                                    selectedApp?.packageName
-                                } else {
-                                    null
-                                },
-                                onSelectVolumeKeyApp = if (hooksEnabled) {
-                                    this@Service::selectVolumeKeyApp
-                                } else {
-                                    null
-                                },
-                                onChange = this@Service.handler::startIdleTimer,
-                                contentAfter = {
-                                    item("system_volume_panel") {
-                                        SystemVolumePanel(
-                                            audioManager = manager.audioManager,
-                                            notificationManagerProxy = manager.notificationManagerProxy,
-                                            showCallVolumeAlways = false,
-                                            applyVisibilityFilter = true,
-                                            allowVisibilityConfig = false,
-                                            isSliderVisible = manager::isSystemSliderVisible,
-                                            onSliderVisibilityChange = manager::setSystemSliderVisible,
-                                            onChange = this@Service.handler::startIdleTimer
-                                        )
-                                    }
-                                }
+                    VolumeKeyPopup(
+                        apps = manager.apps.values,
+                        showAppVolumes = showAppVolumes,
+                        selectedApp = selectedApp,
+                        hooksEnabled = hooksEnabled,
+                        onShowAppVolumes = this@Service::showAppVolumePage,
+                        onShowSystemVolume = this@Service::showSystemVolumePage,
+                        onSelectApp = this@Service::selectVolumeKeyApp,
+                        onRefresh = manager::refreshPlaybackConfigurations,
+                        onChange = this@Service.handler::startIdleTimer,
+                        systemVolumeContent = {
+                            SystemVolumePanel(
+                                audioManager = manager.audioManager,
+                                notificationManagerProxy = manager.notificationManagerProxy,
+                                showCallVolumeAlways = false,
+                                applyVisibilityFilter = true,
+                                allowVisibilityConfig = false,
+                                isSliderVisible = manager::isSystemSliderVisible,
+                                onSliderVisibilityChange = manager::setSystemSliderVisible,
+                                onChange = this@Service.handler::startIdleTimer
                             )
                         }
-                    }
+                    )
                 }
             }
         }
     }
 
     private val layoutParams by lazy {
+        val density = resources.displayMetrics.density
         WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT, // Width
-            WindowManager.LayoutParams.WRAP_CONTENT, // Height
+            (308 * density).roundToInt(),
+            WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
-            PixelFormat.TRANSLUCENT // Make the background translucent
+            PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.CENTER // Center the view
+            gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            x = (12 * density).roundToInt()
         }
     }
 
@@ -318,7 +284,7 @@ class Service : AccessibilityService() {
     private var viewVisible = false
     private var floatingButton: FloatingButton? = null
     private var volumeKeyTarget by mutableStateOf<VolumeKeyTarget>(VolumeKeyTarget.Media)
-    private var volumeKeyTargetPinned = false
+    private var showAppVolumes by mutableStateOf(false)
 
     private fun isVolumeKeyTargetApp(app: App): Boolean {
         return app.isPlayer && !app.hidden && app.hasBeenPlayingRecently
@@ -350,23 +316,15 @@ class Service : AccessibilityService() {
     }
 
     private fun resolveVolumeKeyTarget() {
-        if (volumeKeyTargetPinned) {
-            val target = volumeKeyTarget
-            if (target !is VolumeKeyTarget.App) {
-                return
-            }
-
+        val target = volumeKeyTarget
+        if (target is VolumeKeyTarget.App) {
             val app = manager.apps[target.packageName]
             if (app != null && isSelectableVolumeKeyApp(app)) {
                 return
             }
-
-            volumeKeyTargetPinned = false
         }
 
-        volumeKeyTarget = pickAppForVolumeKeys()?.let {
-            VolumeKeyTarget.App(it.packageName)
-        } ?: VolumeKeyTarget.Media
+        volumeKeyTarget = VolumeKeyTarget.Media
     }
 
     private fun effectiveVolumeKeyTarget(): VolumeKeyTarget {
@@ -380,15 +338,20 @@ class Service : AccessibilityService() {
         return VolumeKeyTarget.Media
     }
 
-    private fun selectAppVolumeTarget() {
-        val currentApp = (volumeKeyTarget as? VolumeKeyTarget.App)
-            ?.packageName
-            ?.let { manager.apps[it] }
-            ?.takeIf(::isSelectableVolumeKeyApp)
-        val app = pickAppForVolumeKeys() ?: currentApp ?: return
+    private fun showAppVolumePage() {
+        manager.refreshPlaybackConfigurations()
+        if (effectiveVolumeKeyTarget() !is VolumeKeyTarget.App) {
+            pickAppForVolumeKeys()?.let {
+                volumeKeyTarget = VolumeKeyTarget.App(it.packageName)
+            }
+        }
+        showAppVolumes = true
+        handler.startIdleTimer()
+    }
 
-        volumeKeyTargetPinned = true
-        volumeKeyTarget = VolumeKeyTarget.App(app.packageName)
+    private fun showSystemVolumePage() {
+        volumeKeyTarget = VolumeKeyTarget.Media
+        showAppVolumes = false
         handler.startIdleTimer()
     }
 
@@ -397,20 +360,23 @@ class Service : AccessibilityService() {
             return
         }
 
-        volumeKeyTargetPinned = true
         volumeKeyTarget = VolumeKeyTarget.App(app.packageName)
-        handler.startIdleTimer()
-    }
-
-    private fun selectMediaVolumeTarget() {
-        volumeKeyTargetPinned = true
-        volumeKeyTarget = VolumeKeyTarget.Media
+        showAppVolumes = true
         handler.startIdleTimer()
     }
 
     private fun showView() {
-        if (!viewVisible && app.systemVolumeButtonHooksEnabled.value) {
-            resolveVolumeKeyTarget()
+        if (!viewVisible) {
+            if (app.systemVolumeButtonHooksEnabled.value) {
+                resolveVolumeKeyTarget()
+                showAppVolumes = volumeKeyTarget is VolumeKeyTarget.App
+            } else {
+                showAppVolumes = false
+            }
+
+            if (showAppVolumes) {
+                manager.refreshPlaybackConfigurations()
+            }
         }
 
         if (view == null) {

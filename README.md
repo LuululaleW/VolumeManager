@@ -27,7 +27,7 @@ Some hand-picked versions can also be downloaded from [releases](https://github.
 3. It should automatically enable its accessibility service
 4. You can change apps' volume from
    1. The main interface
-   2. Press any volume button. The popup targets the active app by default; use the App/Media switch to control the system media volume instead. Your choice stays selected until you change it. The hooks can be switched off per app or globally in settings.
+   2. Press any volume button. The side panel shows the normal system streams; tap the three-dot button to open app volumes, then select an app to use the volume keys for it. Use the back button to return to system volume. The hooks can be switched off per app or globally in settings.
    3. Floating button (disabled by default, can be switched on in settings)
    4. Add the Quick Settings tile; tap it to open the popup or long-press it to open the main interface
 5. Use **Choose apps shown in popup** in settings to search for apps and choose which ones appear in the volume popup. System apps are excluded from this picker; system apps that are already playing can still appear in the volume popup.

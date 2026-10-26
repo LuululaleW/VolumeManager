@@ -102,9 +102,6 @@ data class App(
     val packageName: String
         get() = packageInfo.packageName
 
-    val hasAnyActivity: Boolean
-        get() = packageInfo.activities?.isNotEmpty() == true
-
     val applicationInfo
         get() = packageInfo.applicationInfo!!
 

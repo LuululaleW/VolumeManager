@@ -125,6 +125,15 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
         }.onFailure { Log.e(TAG, "Failed to register playback callback", it) }
     }
 
+    @EnableBinderProxy
+    fun refreshPlaybackConfigurations() {
+        runCatching {
+            processAudioPlaybackConfigurations(audioManager.activePlaybackConfigurations)
+        }.onFailure {
+            Log.w(TAG, "Failed to refresh playback configurations", it)
+        }
+    }
+
     @SuppressLint("DiscouragedPrivateApi")
     @EnableBinderProxy
     fun processAudioPlaybackConfigurations(configs: List<AudioPlaybackConfiguration>) {

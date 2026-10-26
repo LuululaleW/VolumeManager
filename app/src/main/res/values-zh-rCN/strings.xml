@@ -15,8 +15,6 @@
     <string name="group_active">正在播放</string>
     <string name="group_inactive">未播放</string>
     <string name="group_hidden">已隐藏</string>
-    <string name="group_other">其它应用</string>
-    <string name="group_system">系统应用</string>
     <string name="test_crash">测试崩溃</string>
     <string name="close">关闭</string>
     <string name="about">关于</string>
@@ -25,9 +23,15 @@
     <string name="about_github">在 GitHub 上查看</string>
     <string name="jump_to_group">跳转到分组</string>
     <string name="stream_media">媒体</string>
-    <string name="volume_key_target">音量键</string>
-    <string name="volume_key_target_app">应用</string>
     <string name="use_volume_keys_for_app">使用音量键调节%1$s</string>
+    <string name="system_volume_title">音量</string>
+    <string name="app_volumes_title">应用音量</string>
+    <string name="back_to_system_volume">返回系统音量</string>
+    <string name="selected_app">已选择</string>
+    <string name="playing_now">正在播放</string>
+    <string name="recently_paused">最近暂停</string>
+    <string name="no_active_audio_apps">没有正在播放音频的应用</string>
+    <string name="refresh">刷新</string>
     <string name="popup_apps_button">选择弹出面板中显示的应用</string>
     <string name="popup_apps_title">弹出面板应用</string>
     <string name="search_apps">搜索应用</string>

@@ -102,26 +102,18 @@ fun AppVolumeList(
     val activePlayers = mutableListOf<App>()
     val inactivePlayers = mutableListOf<App>()
     val hiddenPlayers = mutableListOf<App>()
-    val otherAppsWithActivities = mutableListOf<App>()
-    val otherAppsWithoutActivities = mutableListOf<App>()
 
     for (app in apps) {
-        if (app.isPlayer) {
-            if (!app.hidden) {
-                if (app.hasBeenPlayingRecently || app.packageName == selectedVolumeKeyPackage) {
-                    activePlayers.add(app)
-                } else {
-                    inactivePlayers.add(app)
-                }
-            } else {
-                hiddenPlayers.add(app)
-            }
+        if (!app.isPlayer) {
+            continue
+        }
+
+        if (app.hidden) {
+            hiddenPlayers.add(app)
+        } else if (app.hasBeenPlayingRecently || app.packageName == selectedVolumeKeyPackage) {
+            activePlayers.add(app)
         } else {
-            if (app.hasAnyActivity) {
-                otherAppsWithActivities.add(app)
-            } else {
-                otherAppsWithoutActivities.add(app)
-            }
+            inactivePlayers.add(app)
         }
     }
 
@@ -138,8 +130,6 @@ fun AppVolumeList(
         addGroup(stringResource(R.string.group_active), activePlayers, true)
         addGroup(stringResource(R.string.group_inactive), inactivePlayers, true)
         addGroup(stringResource(R.string.group_hidden), hiddenPlayers, true)
-        addGroup(stringResource(R.string.group_other), otherAppsWithActivities, false)
-        addGroup(stringResource(R.string.group_system), otherAppsWithoutActivities, false)
     }
 
     LaunchedEffect(showAll) {
