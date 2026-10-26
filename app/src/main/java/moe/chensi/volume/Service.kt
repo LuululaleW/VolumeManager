@@ -141,9 +141,18 @@ class Service : AccessibilityService() {
         }
 
         private fun adjustSystemVolume() {
+            val mode = manager.audioManager.mode
+            val stream = if (
+                mode == AudioManager.MODE_IN_CALL ||
+                mode == AudioManager.MODE_IN_COMMUNICATION
+            ) {
+                AudioManager.STREAM_VOICE_CALL
+            } else {
+                AudioManager.STREAM_MUSIC
+            }
             runCatching {
-                manager.audioManager.adjustSuggestedStreamVolume(
-                    repeatAdjustVolumeDirection, AudioManager.USE_DEFAULT_STREAM_TYPE, 0
+                manager.audioManager.adjustStreamVolume(
+                    stream, repeatAdjustVolumeDirection, 0
                 )
             }.onFailure {
                 Log.w(TAG, "Failed to adjust system volume", it)

@@ -1,6 +1,7 @@
 package moe.chensi.volume.compose
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,7 +14,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -24,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import moe.chensi.volume.data.App
@@ -68,27 +70,51 @@ fun AppVolumeSlider(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(16.dp, 8.dp)
             ) {
-                if (app.icon != null) {
-                    Image(
-                        bitmap = app.icon!!,
-                        contentDescription = stringResource(R.string.app_icon_description),
-                        modifier = Modifier.size(32.dp),
-                        contentScale = ContentScale.FillWidth
-                    )
-                } else {
-                    Box(
-                        Modifier
-                            .size(32.dp)
-                            .background(Color.Gray)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .weight(1f)
+                        .then(
+                            if (onSelectForVolumeKeys != null) {
+                                Modifier
+                                    .clickable(onClick = onSelectForVolumeKeys)
+                                    .semantics {
+                                        contentDescription = volumeKeyDescription
+                                    }
+                            } else {
+                                Modifier
+                            }
+                        )
+                ) {
+                    if (app.icon != null) {
+                        Image(
+                            bitmap = app.icon!!,
+                            contentDescription = stringResource(R.string.app_icon_description),
+                            modifier = Modifier.size(32.dp),
+                            contentScale = ContentScale.FillWidth
+                        )
+                    } else {
+                        Box(
+                            Modifier
+                                .size(32.dp)
+                                .background(Color.Gray)
+                        )
+                    }
+
+                    Text(
+                        text = app.name,
+                        modifier = Modifier.weight(1f),
+                        color = if (selectedForVolumeKeys) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            Color.Unspecified
+                        },
+                        fontWeight = if (selectedForVolumeKeys) FontWeight.SemiBold else null,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
-
-                Text(
-                    text = app.name,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
 
                 Text(
                     text = "${(app.volume * 100).roundToInt()}/100",
@@ -96,16 +122,6 @@ fun AppVolumeSlider(
                     maxLines = 1,
                 )
             }
-        }
-
-        if (onSelectForVolumeKeys != null) {
-            RadioButton(
-                selected = selectedForVolumeKeys,
-                onClick = onSelectForVolumeKeys,
-                modifier = Modifier.semantics {
-                    contentDescription = volumeKeyDescription
-                }
-            )
         }
 
         if (showOptions) {

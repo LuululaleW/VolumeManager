@@ -3,11 +3,12 @@ package moe.chensi.volume.compose
 import android.media.AudioManager
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.progressSemantics
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -50,6 +51,7 @@ private fun isCallMode(mode: Int): Boolean {
     return mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_IN_COMMUNICATION
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CompactSystemVolumePanel(
     audioManager: AudioManager,
@@ -77,10 +79,10 @@ fun CompactSystemVolumePanel(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Row(
+        FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (inCallMode && isSliderVisible(SystemSliderIds.Call)) {
                 VerticalVolumeSlider(
@@ -214,25 +216,18 @@ private fun VerticalVolumeSlider(
                 )
                 .semantics { contentDescription = name }
                 .pointerInput(streamType, maxVolume) {
-                    var startVolume = 0f
-                    var startY = 0f
+                    fun volumeAt(y: Float): Int {
+                        val height = size.height.toFloat().coerceAtLeast(1f)
+                        return ((1f - y / height) * maxVolume).roundToInt()
+                    }
+
                     detectVerticalDragGestures(
                         onDragStart = { offset ->
-                            startVolume = volume.toFloat()
-                            startY = offset.y
+                            applyVolume(volumeAt(offset.y))
                         }
                     ) { change, _ ->
                         change.consume()
-                        val height = size.height.toFloat().coerceAtLeast(1f)
-                        val delta = (startY - change.position.y) / height * maxVolume
-                        applyVolume((startVolume + delta).roundToInt())
-                    }
-                }
-                .pointerInput(streamType, maxVolume) {
-                    detectTapGestures { offset ->
-                        val height = size.height.toFloat().coerceAtLeast(1f)
-                        val target = ((1f - offset.y / height) * maxVolume).roundToInt()
-                        applyVolume(target)
+                        applyVolume(volumeAt(change.position.y))
                     }
                 }
         ) {

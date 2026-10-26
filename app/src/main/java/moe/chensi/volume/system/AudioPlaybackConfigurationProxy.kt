@@ -26,14 +26,22 @@ class AudioPlaybackConfigurationProxy(raw: AudioPlaybackConfiguration) {
 
     private val reflect = Reflect.on(raw)
 
-    private val player by lazy {
+    private val iPlayer by lazy {
         runCatching { reflect.call("getIPlayer") }
-            .onFailure { Log.w(TAG, "Player proxy is unavailable", it) }
+            .onFailure { Log.w(TAG, "IPlayer is unavailable", it) }
+            .getOrNull()
+    }
+
+    private val playerProxy by lazy {
+        runCatching { reflect.call("getPlayerProxy") }
+            .onFailure { Log.w(TAG, "PlayerProxy is unavailable", it) }
             .getOrNull()
     }
 
     val hasPlayer
-        get() = runCatching { player?.get<Any>() != null }.getOrDefault(false)
+        get() = runCatching {
+            iPlayer?.get<Any>() != null || playerProxy?.get<Any>() != null
+        }.getOrDefault(false)
 
     val clientPid: Int
         get() = runCatching { reflect.get<Int>("mClientPid") }.getOrDefault(-1)
@@ -74,18 +82,25 @@ class AudioPlaybackConfigurationProxy(raw: AudioPlaybackConfiguration) {
             return playerState == PlayerState.Started
         }
 
-    fun setVolume(value: Float): Boolean {
+    private fun setVolumeOn(target: Reflect?, value: Float): Boolean {
+        if (target == null) {
+            return false
+        }
+
         return try {
-            val playerReflect = player
-            if (playerReflect == null || playerReflect.get<Any>() == null) {
+            if (target.get<Any>() == null) {
                 false
             } else {
-                playerReflect.call("setVolume", value)
+                target.call("setVolume", value)
                 true
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to set player volume", e)
+        } catch (error: Throwable) {
+            Log.w(TAG, "Failed to set player volume", error)
             false
         }
+    }
+
+    fun setVolume(value: Float): Boolean {
+        return setVolumeOn(iPlayer, value) || setVolumeOn(playerProxy, value)
     }
 }

@@ -28,7 +28,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
@@ -42,17 +44,18 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -67,6 +70,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -245,55 +249,80 @@ class MainActivity : ComponentActivity() {
             VolumeManagerTheme(darkTheme = darkTheme) {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(), topBar = {
-                        TopAppBar(title = { Text(stringResource(R.string.main_title)) }, actions = {
-                            if (manager.shizukuStatus == Manager.ShizukuStatus.Connected) {
-                                ToggleButton(
-                                    checked = showAll,
-                                    checkedIcon = Icons.Default.Check,
-                                    checkedDescription = stringResource(R.string.main_save),
-                                    uncheckedIcon = Icons.Default.Settings,
-                                    uncheckedDescription = stringResource(R.string.main_settings)
-                                ) {
-                                    showAll = it
-                                }
-                            }
-
-                            TooltipBox(
-                                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
-                                    TooltipAnchorPosition.Below, 12.dp
-                                ),
-                                tooltip = { PlainTooltip { Text(stringResource(R.string.about)) } },
-                                state = rememberTooltipState()
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.surface,
+                            shadowElevation = 3.dp
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .statusBarsPadding()
+                                    .height(64.dp)
+                                    .padding(horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                IconButton(onClick = { showAboutDialog = true }) {
-                                    Icon(
-                                        Icons.Default.Info,
-                                        contentDescription = stringResource(R.string.about)
-                                    )
-                                }
-                            }
+                                Text(
+                                    text = stringResource(R.string.main_title),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(start = 12.dp),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
 
-                            if (BuildConfig.DEBUG) {
+                                if (manager.shizukuStatus == Manager.ShizukuStatus.Connected) {
+                                    ToggleButton(
+                                        checked = showAll,
+                                        checkedIcon = Icons.Default.Check,
+                                        checkedDescription = stringResource(R.string.main_save),
+                                        uncheckedIcon = Icons.Default.Settings,
+                                        uncheckedDescription = stringResource(R.string.main_settings)
+                                    ) {
+                                        showAll = it
+                                    }
+                                }
+
                                 TooltipBox(
                                     positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
                                         TooltipAnchorPosition.Below, 12.dp
                                     ),
                                     tooltip = {
-                                        PlainTooltip {
-                                            Text(stringResource(R.string.test_crash_tooltip))
-                                        }
+                                        PlainTooltip { Text(stringResource(R.string.about)) }
                                     },
                                     state = rememberTooltipState()
                                 ) {
-                                    IconButton(onClick = { throw RuntimeException("Test crash triggered from UI") }) {
+                                    IconButton(onClick = { showAboutDialog = true }) {
                                         Icon(
-                                            Icons.Default.BugReport,
-                                            contentDescription = stringResource(R.string.test_crash)
+                                            Icons.Default.Info,
+                                            contentDescription = stringResource(R.string.about)
                                         )
                                     }
                                 }
+
+                                if (BuildConfig.DEBUG) {
+                                    TooltipBox(
+                                        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+                                            TooltipAnchorPosition.Below, 12.dp
+                                        ),
+                                        tooltip = {
+                                            PlainTooltip {
+                                                Text(stringResource(R.string.test_crash_tooltip))
+                                            }
+                                        },
+                                        state = rememberTooltipState()
+                                    ) {
+                                        IconButton(onClick = { throw RuntimeException("Test crash triggered from UI") }) {
+                                            Icon(
+                                                Icons.Default.BugReport,
+                                                contentDescription = stringResource(R.string.test_crash)
+                                            )
+                                        }
+                                    }
+                                }
                             }
-                        })
+                        }
                     }) { innerPadding ->
                     Column(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
