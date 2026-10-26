@@ -110,7 +110,11 @@ fun AppVolumeList(
 
         if (app.hidden) {
             hiddenPlayers.add(app)
-        } else if (app.hasBeenPlayingRecently || app.packageName == selectedVolumeKeyPackage) {
+        } else if (
+            app.hasBeenPlayingRecently ||
+            app.players.isNotEmpty() ||
+            app.packageName == selectedVolumeKeyPackage
+        ) {
             activePlayers.add(app)
         } else {
             inactivePlayers.add(app)

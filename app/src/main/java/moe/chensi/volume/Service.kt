@@ -27,6 +27,7 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.Toast
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -47,7 +48,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import moe.chensi.volume.compose.SystemVolumePanel
+import moe.chensi.volume.compose.CompactSystemVolumePanel
 import moe.chensi.volume.compose.VolumeChangeObserver
 import moe.chensi.volume.compose.VolumeKeyPopup
 import moe.chensi.volume.data.App
@@ -231,33 +232,38 @@ class Service : AccessibilityService() {
             @Composable
             override fun Content() {
                 val hooksEnabled by app.systemVolumeButtonHooksEnabled.collectAsState()
+                val themeMode by app.themeMode.collectAsState()
+                val popupAppearance by app.popupAppearance.collectAsState()
+                val darkTheme = when (themeMode) {
+                    ThemeMode.System -> isSystemInDarkTheme()
+                    ThemeMode.Light -> false
+                    ThemeMode.Dark -> true
+                }
                 val selectedApp = (volumeKeyTarget as? VolumeKeyTarget.App)
                     ?.packageName
                     ?.let { manager.apps[it] }
                     ?.takeIf(::isSelectableVolumeKeyApp)
                     ?.takeIf { hooksEnabled }
 
-                return VolumeManagerTheme {
+                return VolumeManagerTheme(darkTheme = darkTheme) {
                     VolumeKeyPopup(
                         apps = manager.apps.values,
                         showAppVolumes = showAppVolumes,
                         selectedApp = selectedApp,
                         hooksEnabled = hooksEnabled,
+                        maxHeightPercent = popupAppearance.maxHeightPercent,
+                        opacity = popupAppearance.opacity,
                         onShowAppVolumes = this@Service::showAppVolumePage,
                         onShowSystemVolume = this@Service::showSystemVolumePage,
                         onSelectApp = this@Service::selectVolumeKeyApp,
                         onRefresh = manager::refreshPlaybackConfigurations,
                         onChange = this@Service.handler::startIdleTimer,
                         systemVolumeContent = {
-                            SystemVolumePanel(
+                            CompactSystemVolumePanel(
                                 audioManager = manager.audioManager,
                                 notificationManagerProxy = manager.notificationManagerProxy,
                                 setRingerMode = manager::setRingerMode,
-                                showCallVolumeAlways = false,
-                                applyVisibilityFilter = true,
-                                allowVisibilityConfig = false,
                                 isSliderVisible = manager::isSystemSliderVisible,
-                                onSliderVisibilityChange = manager::setSystemSliderVisible,
                                 onChange = this@Service.handler::startIdleTimer
                             )
                         }
@@ -270,7 +276,7 @@ class Service : AccessibilityService() {
     private val layoutParams by lazy {
         val density = resources.displayMetrics.density
         WindowManager.LayoutParams(
-            (308 * density).roundToInt(),
+            (MyApplication.DEFAULT_POPUP_WIDTH_DP * density).roundToInt(),
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
@@ -281,6 +287,34 @@ class Service : AccessibilityService() {
         }
     }
 
+    private fun applyPopupAppearance(appearance: PopupAppearance) {
+        val density = resources.displayMetrics.density
+        val horizontalGravity = if (appearance.side == PopupSide.Left) {
+            Gravity.START
+        } else {
+            Gravity.END
+        }
+        val verticalGravity = when (appearance.vertical) {
+            PopupVertical.Top -> Gravity.TOP
+            PopupVertical.Center -> Gravity.CENTER_VERTICAL
+            PopupVertical.Bottom -> Gravity.BOTTOM
+        }
+
+        layoutParams.width = (appearance.widthDp * density).roundToInt()
+        layoutParams.gravity = horizontalGravity or verticalGravity
+        layoutParams.x = (12 * density).roundToInt()
+        layoutParams.y = if (appearance.vertical == PopupVertical.Center) {
+            0
+        } else {
+            (48 * density).roundToInt()
+        }
+
+        view?.let {
+            runCatching { windowManager.updateViewLayout(it, layoutParams) }
+                .onFailure { error -> Log.w(TAG, "Failed to update popup layout", error) }
+        }
+    }
+
     private var view: View? = null
     private var viewVisible = false
     private var floatingButton: FloatingButton? = null
@@ -288,7 +322,8 @@ class Service : AccessibilityService() {
     private var showAppVolumes by mutableStateOf(false)
 
     private fun isVolumeKeyTargetApp(app: App): Boolean {
-        return app.isPlayer && !app.hidden && app.hasBeenPlayingRecently
+        return app.isPlayer && !app.hidden &&
+            (app.hasBeenPlayingRecently || app.players.isNotEmpty())
     }
 
     private fun isSelectableVolumeKeyApp(app: App): Boolean {
@@ -488,6 +523,7 @@ class Service : AccessibilityService() {
 
         app = super.getApplication() as MyApplication
         manager = app.manager
+        applyPopupAppearance(app.popupAppearance.value)
 
         if (!receiverRegistered) {
             ContextCompat.registerReceiver(
@@ -514,6 +550,11 @@ class Service : AccessibilityService() {
                 if (!enabled) {
                     handler.stopRepeatAdjustVolume()
                 }
+            }
+        }
+        scope.launch {
+            app.popupAppearance.collect { appearance ->
+                applyPopupAppearance(appearance)
             }
         }
 

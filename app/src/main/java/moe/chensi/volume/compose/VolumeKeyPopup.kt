@@ -33,6 +33,8 @@ fun VolumeKeyPopup(
     showAppVolumes: Boolean,
     selectedApp: App?,
     hooksEnabled: Boolean,
+    maxHeightPercent: Int,
+    opacity: Float,
     onShowAppVolumes: () -> Unit,
     onShowSystemVolume: () -> Unit,
     onSelectApp: (App) -> Unit,
@@ -40,13 +42,17 @@ fun VolumeKeyPopup(
     onChange: () -> Unit,
     systemVolumeContent: @Composable () -> Unit
 ) {
-    val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.6f).dp
+    val maxHeight = (
+        LocalConfiguration.current.screenHeightDp * maxHeightPercent / 100f
+        ).dp
     val selected = selectedApp?.takeUnless { it.hidden }
     val playingApps = apps
         .filter { it.isPlaying && !it.hidden }
         .sortedByDescending { it.lastPlayedAt }
     val recentApps = apps
-        .filter { !it.isPlaying && it.hasBeenPlayingRecently && !it.hidden }
+        .filter {
+            !it.isPlaying && (it.hasBeenPlayingRecently || it.players.isNotEmpty()) && !it.hidden
+        }
         .sortedByDescending { it.lastPlayedAt }
     val listedPackages = (playingApps + recentApps).mapTo(mutableSetOf()) { it.packageName }
     val selectedOnly = selected?.takeUnless { it.packageName in listedPackages }
@@ -56,14 +62,14 @@ fun VolumeKeyPopup(
             .fillMaxWidth()
             .heightIn(max = maxHeight),
         shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = opacity),
         tonalElevation = 6.dp
     ) {
         Column(
             modifier = Modifier
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (showAppVolumes) {
                 AppVolumesHeader(onShowSystemVolume = onShowSystemVolume)

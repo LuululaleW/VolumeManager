@@ -84,4 +84,20 @@
     <string name="copy_full_message">Copy full message</string>
     <string name="disable_battery_optimization">Disable battery optimization</string>
     <string name="accessibility_service_died">Accessibility service died!</string>
+    <string name="appearance_title">Appearance</string>
+    <string name="theme_mode">Theme</string>
+    <string name="theme_system">Follow system</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="popup_appearance">Popup appearance</string>
+    <string name="popup_width">Popup width: %1$d dp</string>
+    <string name="popup_height">Maximum height: %1$d%%</string>
+    <string name="popup_opacity">Opacity: %1$d%%</string>
+    <string name="popup_side">Horizontal position</string>
+    <string name="popup_left">Left</string>
+    <string name="popup_right">Right</string>
+    <string name="popup_vertical">Vertical position</string>
+    <string name="popup_top">Top</string>
+    <string name="popup_center">Center</string>
+    <string name="popup_bottom">Bottom</string>
 </resources>

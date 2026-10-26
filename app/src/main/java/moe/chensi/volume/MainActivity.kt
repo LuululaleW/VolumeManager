@@ -20,6 +20,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -74,6 +75,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import moe.chensi.volume.compose.AboutDialog
+import moe.chensi.volume.compose.AppearanceDialog
 import moe.chensi.volume.compose.AppVolumeList
 import moe.chensi.volume.compose.CrashReportDialog
 import moe.chensi.volume.compose.PopupAppsDialog
@@ -173,10 +175,18 @@ class MainActivity : ComponentActivity() {
             val floatingButtonSize by application.floatingButtonSize.collectAsState()
             val systemVolumeButtonHooksEnabled by
                 application.systemVolumeButtonHooksEnabled.collectAsState()
+            val themeMode by application.themeMode.collectAsState()
+            val popupAppearance by application.popupAppearance.collectAsState()
+            val darkTheme = when (themeMode) {
+                ThemeMode.System -> isSystemInDarkTheme()
+                ThemeMode.Light -> false
+                ThemeMode.Dark -> true
+            }
             var showAll by remember { mutableStateOf(false) }
             var crashReport by remember { mutableStateOf<String?>(null) }
             var showAboutDialog by remember { mutableStateOf(false) }
             var showPopupAppsDialog by remember { mutableStateOf(false) }
+            var showAppearanceDialog by remember { mutableStateOf(false) }
 
             LaunchedEffect(showCrashReport) {
                 if (showCrashReport) {
@@ -193,7 +203,7 @@ class MainActivity : ComponentActivity() {
                             usePlatformDefaultWidth = false
                         )
                     ) {
-                        VolumeManagerTheme {
+                        VolumeManagerTheme(darkTheme = darkTheme) {
                             CrashReportDialog(
                                 crashReport = report, onDismiss = {
                                     CrashHandler.clearCrashReport()
@@ -209,13 +219,30 @@ class MainActivity : ComponentActivity() {
                     onDismissRequest = { showAboutDialog = false },
                     properties = DialogProperties(usePlatformDefaultWidth = false)
                 ) {
-                    VolumeManagerTheme {
+                    VolumeManagerTheme(darkTheme = darkTheme) {
                         AboutDialog(onDismiss = { showAboutDialog = false })
                     }
                 }
             }
 
-            VolumeManagerTheme {
+            if (showAppearanceDialog) {
+                Dialog(
+                    onDismissRequest = { showAppearanceDialog = false },
+                    properties = DialogProperties()
+                ) {
+                    VolumeManagerTheme(darkTheme = darkTheme) {
+                        AppearanceDialog(
+                            themeMode = themeMode,
+                            popupAppearance = popupAppearance,
+                            onThemeModeChange = application::setThemeMode,
+                            onPopupAppearanceChange = application::updatePopupAppearance,
+                            onDismiss = { showAppearanceDialog = false }
+                        )
+                    }
+                }
+            }
+
+            VolumeManagerTheme(darkTheme = darkTheme) {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(), topBar = {
                         TopAppBar(title = { Text(stringResource(R.string.main_title)) }, actions = {
@@ -380,6 +407,18 @@ class MainActivity : ComponentActivity() {
                                             )
                                             Spacer(Modifier.width(8.dp))
                                             Text(stringResource(R.string.popup_apps_button))
+                                        }
+
+                                        OutlinedButton(
+                                            onClick = { showAppearanceDialog = true },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Settings,
+                                                contentDescription = null
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(stringResource(R.string.appearance_title))
                                         }
 
                                         Row(

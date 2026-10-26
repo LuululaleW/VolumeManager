@@ -206,7 +206,7 @@ private fun requestNotificationPolicyAccess(context: Context) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RingFooter(
+internal fun RingFooter(
     audioManager: AudioManager,
     notificationManagerProxy: NotificationManagerProxy,
     setRingerMode: (Int) -> Unit,

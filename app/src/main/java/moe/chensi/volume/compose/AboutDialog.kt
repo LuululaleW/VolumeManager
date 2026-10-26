@@ -82,7 +82,7 @@ fun AboutDialog(
                         onClick = {
                             val intent = Intent(
                                 Intent.ACTION_VIEW,
-                                "https://github.com/yume-chan/VolumeManager".toUri()
+                                "https://github.com/LuululaleW/VolumeManager".toUri()
                             )
                             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             runCatching { context.startActivity(intent) }

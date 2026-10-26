@@ -85,4 +85,20 @@
     <string name="copy_full_message">复制完整信息</string>
     <string name="disable_battery_optimization">关闭电池优化</string>
     <string name="accessibility_service_died">无障碍服务已停止！</string>
+    <string name="appearance_title">外观</string>
+    <string name="theme_mode">主题</string>
+    <string name="theme_system">跟随系统</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+    <string name="popup_appearance">弹出面板外观</string>
+    <string name="popup_width">弹出面板宽度：%1$d dp</string>
+    <string name="popup_height">最大高度：%1$d%%</string>
+    <string name="popup_opacity">不透明度：%1$d%%</string>
+    <string name="popup_side">水平位置</string>
+    <string name="popup_left">左侧</string>
+    <string name="popup_right">右侧</string>
+    <string name="popup_vertical">垂直位置</string>
+    <string name="popup_top">顶部</string>
+    <string name="popup_center">居中</string>
+    <string name="popup_bottom">底部</string>
 </resources>
