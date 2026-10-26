@@ -48,7 +48,8 @@ fun PopupAppsDialog(
     onDismiss: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
-    val filteredApps = apps
+    val pickerApps = apps.filter { it.shouldShowInAppPicker }
+    val filteredApps = pickerApps
         .filter { app ->
             query.isBlank() ||
                 app.name.contains(query, ignoreCase = true) ||
@@ -101,7 +102,7 @@ fun PopupAppsDialog(
                         text = stringResource(R.string.show_in_popup),
                         modifier = Modifier.weight(1f)
                     )
-                    TextButton(onClick = { apps.forEach { it.hidden = false } }) {
+                    TextButton(onClick = { pickerApps.forEach { it.hidden = false } }) {
                         Text(stringResource(R.string.enable_all_apps))
                     }
                 }

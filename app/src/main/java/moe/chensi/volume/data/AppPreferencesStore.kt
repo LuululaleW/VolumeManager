@@ -9,7 +9,10 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -33,10 +36,9 @@ class AppPreferencesStore(private val dataStore: DataStore<Preferences>) {
 
     private val lock = Any()
     private var state = SerializedState(mutableListOf(), mutableMapOf())
-    val values: List<AppPreferences>
-        get() = state.values
-    val indices: Map<String, Int>
-        get() = synchronized(lock) { state.indices.toMap() }
+    private val saveMutex = Mutex()
+    private var tracked = false
+
     fun getSystemSliderVisible(id: String): Boolean {
         return synchronized(lock) { state.systemSliderVisibility[id] ?: true }
     }
@@ -76,35 +78,39 @@ class AppPreferencesStore(private val dataStore: DataStore<Preferences>) {
             }
         }
 
-    fun track(onChange: (first: Boolean) -> Unit) {
-        var first = true
+    fun track(onLoaded: () -> Unit) {
+        synchronized(lock) {
+            if (tracked) {
+                return
+            }
+            tracked = true
+        }
 
         scope.launch {
-            dataStore.data
+            val preferences = dataStore.data
                 .catch { error ->
                     Log.e(TAG, "Failed to read preferences", error)
                     emit(emptyPreferences())
                 }
-                .collect { preferences ->
-                    val valueJson = preferences[key]
-                    if (valueJson != null) {
-                        val decoded = runCatching {
-                            json.decodeFromString<SerializedState>(valueJson)
-                        }.onFailure {
-                            Log.e(TAG, "Failed to decode preferences, keeping last state", it)
-                        }.getOrNull()
+                .first()
 
-                        if (decoded != null) {
-                            synchronized(lock) {
-                                state = decoded
-                            }
-                        }
+            val valueJson = preferences[key]
+            if (valueJson != null) {
+                val decoded = runCatching {
+                    json.decodeFromString<SerializedState>(valueJson)
+                }.onFailure {
+                    Log.e(TAG, "Failed to decode preferences, keeping last state", it)
+                }.getOrNull()
+
+                if (decoded != null) {
+                    synchronized(lock) {
+                        state = decoded
                     }
-
-                    onChange(first)
-                    @Suppress("AssignedValueIsNeverRead")
-                    first = false
                 }
+            }
+
+            runCatching { onLoaded() }
+                .onFailure { Log.e(TAG, "Failed to handle loaded preferences", it) }
         }
     }
 
@@ -124,12 +130,15 @@ class AppPreferencesStore(private val dataStore: DataStore<Preferences>) {
 
     fun save() {
         scope.launch {
-            runCatching {
-                dataStore.edit { preferences ->
-                    preferences[key] = Json.encodeToString(state)
+            saveMutex.withLock {
+                runCatching {
+                    val encoded = synchronized(lock) { Json.encodeToString(state) }
+                    dataStore.edit { preferences ->
+                        preferences[key] = encoded
+                    }
+                }.onFailure {
+                    Log.e(TAG, "Failed to save preferences", it)
                 }
-            }.onFailure {
-                Log.e(TAG, "Failed to save preferences", it)
             }
         }
     }

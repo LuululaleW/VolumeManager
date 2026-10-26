@@ -133,20 +133,21 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
             .getOrNull()
             .orEmpty()
 
-        val processPackages = runningProcesses.mapNotNull { process ->
-            process.pkgList?.firstOrNull()?.let { packageName -> process.pid to packageName }
-        }.toMap()
+        val packagesByPid = mutableMapOf<Int, MutableList<String>>()
+        for (process in runningProcesses) {
+            val packageNames = process.pkgList ?: continue
+            packagesByPid.getOrPut(process.pid) { mutableListOf() }.addAll(packageNames.toList())
+        }
+
+        val packagesByUid = apps.values
+            .groupBy { it.applicationInfo.uid }
+            .mapValues { (_, uidApps) -> uidApps.map { it.packageName } }
 
         val playersByPackage = mutableMapOf<String, MutableList<AudioPlaybackConfigurationProxy>>()
 
         for (config in configs) {
             val proxy = AudioPlaybackConfigurationProxy(config)
-            val packageName = processPackages[proxy.clientPid]
-                ?: runCatching {
-                    packageManager.getPackagesForUid(proxy.clientUid)
-                }.getOrNull()?.let { packages ->
-                    packages.firstOrNull { apps.containsKey(it) } ?: packages.firstOrNull()
-                }
+            val packageName = resolveAudioPackage(proxy, packagesByPid, packagesByUid)
                 ?: continue
 
             runCatching { getApp(packageName) }
@@ -164,6 +165,24 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
                 app.clearPlayers()
             }
         }
+    }
+
+    private fun resolveAudioPackage(
+        proxy: AudioPlaybackConfigurationProxy,
+        packagesByPid: Map<Int, List<String>>,
+        packagesByUid: Map<Int, List<String>>
+    ): String? {
+        val candidates = buildList {
+            packagesByPid[proxy.clientPid]?.let { addAll(it) }
+            packagesByUid[proxy.clientUid]?.let { addAll(it) }
+        }
+
+        candidates.firstOrNull { apps.containsKey(it) }?.let { return it }
+        candidates.firstOrNull()?.let { return it }
+
+        return runCatching { packageManager.getPackagesForUid(proxy.clientUid) }
+            .getOrNull()
+            ?.firstOrNull { apps.containsKey(it) }
     }
 
     init {
@@ -208,20 +227,10 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
     }
 
     private fun start() {
-        appPreferencesStore.track { first ->
-            for ((packageName, index) in appPreferencesStore.indices) {
-                if (!first) {
-                    // Replace with new reference
-                    getApp(packageName)?.setPreferences(appPreferencesStore.values[index])
-                }
-            }
-
+        appPreferencesStore.track {
             _systemSliderVisibility.clear()
             _systemSliderVisibility.putAll(appPreferencesStore.systemSliderVisibility)
-
-            if (first) {
-                initialize()
-            }
+            initialize()
         }
     }
 }

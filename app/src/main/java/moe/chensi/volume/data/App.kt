@@ -1,5 +1,6 @@
 package moe.chensi.volume.data
 
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.icu.text.Collator
 import android.icu.text.Transliterator
@@ -28,7 +29,7 @@ data class App(
     val packageManager: PackageManagerProxy,
     val packageInfo: PackageInfo,
     val name: String,
-    private var preferences: AppPreferences,
+    private val preferences: AppPreferences,
     private val savePreferences: () -> Unit
 ) {
     companion object {
@@ -107,6 +108,13 @@ data class App(
     val applicationInfo
         get() = packageInfo.applicationInfo!!
 
+    private val isSystemApp: Boolean
+        get() = (applicationInfo.flags and
+            (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0
+
+    val shouldShowInAppPicker: Boolean
+        get() = !isSystemApp
+
     private var _icon by mutableStateOf<ImageBitmap?>(null)
     private var _iconLoading = false
     val icon: ImageBitmap?
@@ -125,14 +133,6 @@ data class App(
 
             return _icon
         }
-
-    fun setPreferences(value: AppPreferences) {
-        preferences = value
-
-        _volume = preferences.volume
-        _hidden = preferences.hidden
-        _disableVolumeButtons = preferences.disableVolumeButtons
-    }
 
     private val _players: MutableList<AudioPlaybackConfigurationProxy> = mutableStateListOf()
     val players: List<AudioPlaybackConfigurationProxy> = _players
@@ -154,6 +154,10 @@ data class App(
             // Set app as player even if the player is released
             isPlayer = true
 
+            if (config.isPlaying) {
+                playing = true
+            }
+
             if (!config.hasPlayer) {
                 continue
             }
@@ -170,10 +174,6 @@ data class App(
             }
 
             validPlayers.add(config)
-
-            if (config.isPlaying) {
-                playing = true
-            }
         }
 
         _players.clear()

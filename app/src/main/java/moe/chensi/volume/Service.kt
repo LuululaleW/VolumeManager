@@ -244,7 +244,7 @@ class Service : AccessibilityService() {
                 val selectedApp = (volumeKeyTarget as? VolumeKeyTarget.App)
                     ?.packageName
                     ?.let { manager.apps[it] }
-                    ?.takeIf(::isVolumeKeyTargetApp)
+                    ?.takeIf(::isSelectableVolumeKeyApp)
                 val hasActiveApps = manager.apps.values.any(::isVolumeKeyTargetApp)
 
                 return VolumeManagerTheme {
@@ -260,7 +260,7 @@ class Service : AccessibilityService() {
                             if (hooksEnabled) {
                                 VolumeKeyTargetSelector(
                                     selectedApp = selectedApp,
-                                    hasActiveApps = hasActiveApps,
+                                    hasActiveApps = hasActiveApps || selectedApp != null,
                                     onSelectApp = this@Service::selectAppVolumeTarget,
                                     onSelectMedia = this@Service::selectMediaVolumeTarget
                                 )
@@ -318,10 +318,14 @@ class Service : AccessibilityService() {
     private var viewVisible = false
     private var floatingButton: FloatingButton? = null
     private var volumeKeyTarget by mutableStateOf<VolumeKeyTarget>(VolumeKeyTarget.Media)
-    private var mediaTargetPinned = false
+    private var volumeKeyTargetPinned = false
 
     private fun isVolumeKeyTargetApp(app: App): Boolean {
         return app.isPlayer && !app.hidden && app.hasBeenPlayingRecently
+    }
+
+    private fun isSelectableVolumeKeyApp(app: App): Boolean {
+        return app.isPlayer && !app.hidden
     }
 
     private fun activeVolumeKeyApps(): List<App> {
@@ -346,9 +350,18 @@ class Service : AccessibilityService() {
     }
 
     private fun resolveVolumeKeyTarget() {
-        if (mediaTargetPinned) {
-            volumeKeyTarget = VolumeKeyTarget.Media
-            return
+        if (volumeKeyTargetPinned) {
+            val target = volumeKeyTarget
+            if (target !is VolumeKeyTarget.App) {
+                return
+            }
+
+            val app = manager.apps[target.packageName]
+            if (app != null && isSelectableVolumeKeyApp(app)) {
+                return
+            }
+
+            volumeKeyTargetPinned = false
         }
 
         volumeKeyTarget = pickAppForVolumeKeys()?.let {
@@ -360,7 +373,7 @@ class Service : AccessibilityService() {
         val target = volumeKeyTarget
         if (target is VolumeKeyTarget.App) {
             val app = manager.apps[target.packageName]
-            if (app != null && isVolumeKeyTargetApp(app)) {
+            if (app != null && isSelectableVolumeKeyApp(app)) {
                 return target
             }
         }
@@ -371,22 +384,26 @@ class Service : AccessibilityService() {
         val currentApp = (volumeKeyTarget as? VolumeKeyTarget.App)
             ?.packageName
             ?.let { manager.apps[it] }
-            ?.takeIf(::isVolumeKeyTargetApp)
-        val app = currentApp ?: pickAppForVolumeKeys() ?: return
+            ?.takeIf(::isSelectableVolumeKeyApp)
+        val app = pickAppForVolumeKeys() ?: currentApp ?: return
 
-        mediaTargetPinned = false
+        volumeKeyTargetPinned = true
         volumeKeyTarget = VolumeKeyTarget.App(app.packageName)
         handler.startIdleTimer()
     }
 
     private fun selectVolumeKeyApp(app: App) {
-        mediaTargetPinned = false
+        if (!isSelectableVolumeKeyApp(app)) {
+            return
+        }
+
+        volumeKeyTargetPinned = true
         volumeKeyTarget = VolumeKeyTarget.App(app.packageName)
         handler.startIdleTimer()
     }
 
     private fun selectMediaVolumeTarget() {
-        mediaTargetPinned = true
+        volumeKeyTargetPinned = true
         volumeKeyTarget = VolumeKeyTarget.Media
         handler.startIdleTimer()
     }
