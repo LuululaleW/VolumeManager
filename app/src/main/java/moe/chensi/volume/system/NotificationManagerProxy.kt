@@ -28,13 +28,31 @@ class NotificationManagerProxy private constructor(context: Context) {
         }.onFailure { Log.w(TAG, "Failed to wrap NotificationManager service", it) }
     }
 
-    @EnableBinderProxy
     fun getCurrentInterruptionFilter(): Int {
-        return notificationManager.currentInterruptionFilter
+        return try {
+            notificationManager.currentInterruptionFilter
+        } catch (error: SecurityException) {
+            Log.w(TAG, "Direct interruption filter read was denied, retrying with Shizuku", error)
+            getCurrentInterruptionFilterViaShizuku()
+        }
     }
 
     @EnableBinderProxy
+    private fun getCurrentInterruptionFilterViaShizuku(): Int {
+        return notificationManager.currentInterruptionFilter
+    }
+
     fun setInterruptionFilter(filter: Int) {
+        try {
+            notificationManager.setInterruptionFilter(filter)
+        } catch (error: SecurityException) {
+            Log.w(TAG, "Direct interruption filter change was denied, retrying with Shizuku", error)
+            setInterruptionFilterViaShizuku(filter)
+        }
+    }
+
+    @EnableBinderProxy
+    private fun setInterruptionFilterViaShizuku(filter: Int) {
         notificationManager.setInterruptionFilter(filter)
     }
 }

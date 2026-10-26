@@ -125,6 +125,21 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
         }.onFailure { Log.e(TAG, "Failed to register playback callback", it) }
     }
 
+    @SuppressLint("MissingPermission")
+    fun setRingerMode(mode: Int) {
+        try {
+            audioManager.ringerMode = mode
+        } catch (error: SecurityException) {
+            Log.w(TAG, "Direct ringer mode change was denied, retrying with Shizuku", error)
+            setRingerModeViaShizuku(mode)
+        }
+    }
+
+    @EnableBinderProxy
+    private fun setRingerModeViaShizuku(mode: Int) {
+        audioManager.ringerMode = mode
+    }
+
     @EnableBinderProxy
     fun refreshPlaybackConfigurations() {
         runCatching {

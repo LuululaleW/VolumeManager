@@ -70,7 +70,7 @@ fun AboutDialog(
                         }
                     }
                     Text(
-                        text = stringResource(R.string.about_author, "yume-chan"),
+                        text = stringResource(R.string.about_author, "Yume-Chan x LuululaleW"),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )

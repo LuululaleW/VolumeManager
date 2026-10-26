@@ -252,6 +252,7 @@ class Service : AccessibilityService() {
                             SystemVolumePanel(
                                 audioManager = manager.audioManager,
                                 notificationManagerProxy = manager.notificationManagerProxy,
+                                setRingerMode = manager::setRingerMode,
                                 showCallVolumeAlways = false,
                                 applyVisibilityFilter = true,
                                 allowVisibilityConfig = false,

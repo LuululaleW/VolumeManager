@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.media.AudioManager
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -33,6 +34,7 @@ import moe.chensi.volume.ui.theme.Typography
 import java.util.concurrent.atomic.AtomicInteger
 
 private const val VOLUME_CHANGED_ACTION = "android.media.VOLUME_CHANGED_ACTION"
+private const val TAG = "StreamVolumeSlider"
 
 @SuppressLint("StaticFieldLeak")
 internal object VolumeChangeObserver {
@@ -51,20 +53,30 @@ internal object VolumeChangeObserver {
                     _volumeChangedCount++
                 }
             }
-            ContextCompat.registerReceiver(
-                registeredContext!!,
-                receiver!!,
-                IntentFilter(VOLUME_CHANGED_ACTION),
-                ContextCompat.RECEIVER_NOT_EXPORTED
-            )
+            runCatching {
+                ContextCompat.registerReceiver(
+                    registeredContext!!,
+                    receiver!!,
+                    IntentFilter(VOLUME_CHANGED_ACTION),
+                    ContextCompat.RECEIVER_NOT_EXPORTED
+                )
+            }.onFailure {
+                Log.w(TAG, "Failed to register volume change receiver", it)
+                receiver = null
+                registeredContext = null
+            }
         }
     }
 
     @Synchronized
     fun stopObserving() {
-        if (refCount.decrementAndGet() == 0) {
+        if (refCount.decrementAndGet() <= 0) {
+            refCount.set(0)
             receiver?.let {
-                registeredContext!!.unregisterReceiver(it)
+                runCatching { registeredContext?.unregisterReceiver(it) }
+                    .onFailure { error ->
+                        Log.w(TAG, "Failed to unregister volume change receiver", error)
+                    }
                 receiver = null
             }
             registeredContext = null
@@ -87,8 +99,16 @@ fun StreamVolumeSlider(
     onChange: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
-    var volume by remember { mutableIntStateOf(audioManager.getStreamVolume(streamType)) }
-    var maxVolume by remember { mutableFloatStateOf(0f) }
+    var volume by remember {
+        mutableIntStateOf(runCatching { audioManager.getStreamVolume(streamType) }.getOrDefault(0))
+    }
+    var maxVolume by remember {
+        mutableFloatStateOf(
+            runCatching { audioManager.getStreamMaxVolume(streamType).toFloat() }
+                .getOrDefault(1f)
+                .coerceAtLeast(1f)
+        )
+    }
 
     DisposableEffect(context) {
         VolumeChangeObserver.startObserving(context)
@@ -98,13 +118,16 @@ fun StreamVolumeSlider(
     }
 
     LaunchedEffect(streamType) {
-        maxVolume = audioManager.getStreamMaxVolume(streamType).toFloat()
+        maxVolume = runCatching { audioManager.getStreamMaxVolume(streamType).toFloat() }
+            .getOrDefault(maxVolume)
+            .coerceAtLeast(1f)
     }
 
     val volumeChangedCount = VolumeChangeObserver.volumeChangedCount
 
     LaunchedEffect(volumeChangedCount) {
-        volume = audioManager.getStreamVolume(streamType)
+        volume = runCatching { audioManager.getStreamVolume(streamType) }
+            .getOrDefault(volume)
     }
 
     Row(
@@ -122,9 +145,16 @@ fun StreamVolumeSlider(
                     return@TrackSlider
                 }
 
-                volume = target
-                audioManager.setStreamVolume(streamType, target, 0)
-                onChange?.invoke()
+                runCatching { audioManager.setStreamVolume(streamType, target, 0) }
+                    .onSuccess {
+                        volume = target
+                        onChange?.invoke()
+                    }
+                    .onFailure {
+                        Log.w(TAG, "Failed to change volume for stream $streamType", it)
+                        volume = runCatching { audioManager.getStreamVolume(streamType) }
+                            .getOrDefault(volume)
+                    }
             },
         ) {
             Row(

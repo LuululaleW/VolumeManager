@@ -48,6 +48,7 @@
     <string name="disable_vibrate_mode">关闭振动模式</string>
     <string name="enable_do_not_disturb">开启勿扰模式</string>
     <string name="disable_do_not_disturb">关闭勿扰模式</string>
+    <string name="notification_policy_access_required">请允许“勿扰模式”访问权限以更改此设置</string>
     <string name="main_title">音量管理器</string>
     <string name="main_save">保存</string>
     <string name="main_settings">设置</string>

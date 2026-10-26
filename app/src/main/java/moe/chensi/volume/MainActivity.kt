@@ -470,6 +470,7 @@ class MainActivity : ComponentActivity() {
                                             SystemVolumePanel(
                                                 audioManager = manager.audioManager,
                                                 notificationManagerProxy = manager.notificationManagerProxy,
+                                                setRingerMode = manager::setRingerMode,
                                                 showCallVolumeAlways = true,
                                                 applyVisibilityFilter = !showAll,
                                                 allowVisibilityConfig = showAll,

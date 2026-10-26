@@ -6,6 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.media.AudioManager
+import android.provider.Settings
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,6 +39,8 @@ import androidx.core.content.ContextCompat
 import moe.chensi.volume.R
 import moe.chensi.volume.system.NotificationManagerProxy
 
+private const val TAG = "SystemVolumePanel"
+
 object SystemSliderIds {
     const val Media = "media"
     const val Ring = "ring"
@@ -53,6 +58,7 @@ private fun isCallMode(mode: Int): Boolean {
 fun SystemVolumePanel(
     audioManager: AudioManager,
     notificationManagerProxy: NotificationManagerProxy,
+    setRingerMode: (Int) -> Unit,
     showCallVolumeAlways: Boolean,
     applyVisibilityFilter: Boolean,
     allowVisibilityConfig: Boolean,
@@ -129,6 +135,7 @@ fun SystemVolumePanel(
                     RingFooter(
                         audioManager = audioManager,
                         notificationManagerProxy = notificationManagerProxy,
+                        setRingerMode = setRingerMode,
                         sliderVisible = isSliderVisible(SystemSliderIds.Ring),
                         allowVisibilityConfig = allowVisibilityConfig,
                         onSliderVisibilityChange = onSliderVisibilityChange,
@@ -180,25 +187,56 @@ fun SystemVolumePanel(
     }
 }
 
+private fun requestNotificationPolicyAccess(context: Context) {
+    Toast.makeText(
+        context,
+        R.string.notification_policy_access_required,
+        Toast.LENGTH_LONG
+    ).show()
+
+    runCatching {
+        context.startActivity(
+            Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    }.onFailure {
+        Log.w(TAG, "Unable to open notification policy access settings", it)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RingFooter(
     audioManager: AudioManager,
     notificationManagerProxy: NotificationManagerProxy,
+    setRingerMode: (Int) -> Unit,
     sliderVisible: Boolean,
     allowVisibilityConfig: Boolean,
     onSliderVisibilityChange: (String, Boolean) -> Unit,
     onChange: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
-    var ringerMode by remember { mutableIntStateOf(audioManager.ringerMode) }
-    var interruptionFilter by remember { mutableIntStateOf(notificationManagerProxy.getCurrentInterruptionFilter()) }
+    var ringerMode by remember {
+        mutableIntStateOf(
+            runCatching { audioManager.ringerMode }
+                .getOrDefault(AudioManager.RINGER_MODE_NORMAL)
+        )
+    }
+    var interruptionFilter by remember {
+        mutableIntStateOf(
+            runCatching { notificationManagerProxy.getCurrentInterruptionFilter() }
+                .getOrDefault(NotificationManager.INTERRUPTION_FILTER_ALL)
+        )
+    }
 
     DisposableEffect(context) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
-                ringerMode = audioManager.ringerMode
-                interruptionFilter = notificationManagerProxy.getCurrentInterruptionFilter()
+                ringerMode = runCatching { audioManager.ringerMode }
+                    .getOrDefault(ringerMode)
+                interruptionFilter = runCatching {
+                    notificationManagerProxy.getCurrentInterruptionFilter()
+                }.getOrDefault(interruptionFilter)
             }
         }
 
@@ -206,14 +244,22 @@ private fun RingFooter(
             addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
             addAction(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED)
         }
-        ContextCompat.registerReceiver(
-            context,
-            receiver,
-            filter,
-            ContextCompat.RECEIVER_NOT_EXPORTED
-        )
+        val registered = runCatching {
+            ContextCompat.registerReceiver(
+                context,
+                receiver,
+                filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+        }.onFailure {
+            Log.w(TAG, "Failed to register ringer mode receiver", it)
+        }.isSuccess
+
         onDispose {
-            context.unregisterReceiver(receiver)
+            if (registered) {
+                runCatching { context.unregisterReceiver(receiver) }
+                    .onFailure { Log.w(TAG, "Failed to unregister ringer mode receiver", it) }
+            }
         }
     }
 
@@ -228,9 +274,15 @@ private fun RingFooter(
             uncheckedDescription = stringResource(R.string.enable_vibrate_mode),
             uncheckedIcon = Icons.AutoMirrored.Filled.VolumeUp
         ) {
-            audioManager.ringerMode =
+            val target =
                 if (it) AudioManager.RINGER_MODE_VIBRATE else AudioManager.RINGER_MODE_NORMAL
-            ringerMode = audioManager.ringerMode
+            runCatching { setRingerMode(target) }
+                .onFailure {
+                    Log.w(TAG, "Failed to change ringer mode", it)
+                    requestNotificationPolicyAccess(context)
+                }
+            ringerMode = runCatching { audioManager.ringerMode }
+                .getOrDefault(ringerMode)
             onChange?.invoke()
         }
 
@@ -241,10 +293,19 @@ private fun RingFooter(
             uncheckedDescription = stringResource(R.string.enable_do_not_disturb),
             uncheckedIcon = Icons.Default.NotificationsActive
         ) {
-            notificationManagerProxy.setInterruptionFilter(
-                if (it) NotificationManager.INTERRUPTION_FILTER_NONE else NotificationManager.INTERRUPTION_FILTER_ALL
-            )
-            interruptionFilter = notificationManagerProxy.getCurrentInterruptionFilter()
+            val target = if (it) {
+                NotificationManager.INTERRUPTION_FILTER_NONE
+            } else {
+                NotificationManager.INTERRUPTION_FILTER_ALL
+            }
+            runCatching { notificationManagerProxy.setInterruptionFilter(target) }
+                .onFailure {
+                    Log.w(TAG, "Failed to change interruption filter", it)
+                    requestNotificationPolicyAccess(context)
+                }
+            interruptionFilter = runCatching {
+                notificationManagerProxy.getCurrentInterruptionFilter()
+            }.getOrDefault(interruptionFilter)
             onChange?.invoke()
         }
 

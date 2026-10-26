@@ -40,11 +40,16 @@ fun TrackSlider(
 ) {
     val coercedValue = value.coerceIn(valueRange.start, valueRange.endInclusive)
     val latestValue by rememberUpdatedState(coercedValue)
+    val latestRange by rememberUpdatedState(valueRange)
     val density = LocalDensity.current
     val cornerRadiusPx = with(density) { cornerRadius.toPx() }
 
-    val fillWidthPercentage =
-        (coercedValue - valueRange.start) / (valueRange.endInclusive - valueRange.start)
+    val valueSpan = valueRange.endInclusive - valueRange.start
+    val fillWidthPercentage = if (valueSpan > 0f) {
+        (coercedValue - valueRange.start) / valueSpan
+    } else {
+        0f
+    }
 
     Box(
         modifier = modifier
@@ -68,14 +73,18 @@ fun TrackSlider(
                         startValue = latestValue
                         startX = offset.x
                     }) { change, _ ->
-                        val dragAmount = change.position.x - startX
-                        val changedPercentage = dragAmount / size.width.toFloat()
-                        val totalRange = valueRange.endInclusive - valueRange.start
-                        val newValue = (startValue + changedPercentage * totalRange)
-                        val coercedNewValue =
-                            newValue.coerceIn(valueRange.start, valueRange.endInclusive)
-                        if (coercedNewValue != latestValue) {
-                            onValueChange(coercedNewValue)
+                        val width = size.width.toFloat()
+                        val range = latestRange
+                        val totalRange = range.endInclusive - range.start
+                        if (width > 0f && totalRange > 0f) {
+                            val dragAmount = change.position.x - startX
+                            val changedPercentage = dragAmount / width
+                            val newValue = (startValue + changedPercentage * totalRange)
+                            val coercedNewValue =
+                                newValue.coerceIn(range.start, range.endInclusive)
+                            if (coercedNewValue != latestValue) {
+                                onValueChange(coercedNewValue)
+                            }
                         }
                     }
                 }

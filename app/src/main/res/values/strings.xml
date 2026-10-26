@@ -47,6 +47,7 @@
     <string name="disable_vibrate_mode">Disable vibrate mode</string>
     <string name="enable_do_not_disturb">Enable Do Not Disturb</string>
     <string name="disable_do_not_disturb">Disable Do Not Disturb</string>
+    <string name="notification_policy_access_required">Allow Do Not Disturb access to change this setting</string>
     <string name="main_title">Volume Manager</string>
     <string name="main_save">Save</string>
     <string name="main_settings">Settings</string>
