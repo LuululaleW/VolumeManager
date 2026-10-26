@@ -208,10 +208,11 @@ private fun VerticalVolumeSlider(
             modifier = Modifier
                 .width(sliderWidth)
                 .height(sliderHeight)
-                .semantics {
-                    contentDescription = name
-                    progressSemantics(volume.toFloat(), 0f..maxVolume.toFloat())
-                }
+                .progressSemantics(
+                    value = volume.toFloat(),
+                    valueRange = 0f..maxVolume.toFloat()
+                )
+                .semantics { contentDescription = name }
                 .pointerInput(streamType, maxVolume) {
                     var startVolume = 0f
                     var startY = 0f
