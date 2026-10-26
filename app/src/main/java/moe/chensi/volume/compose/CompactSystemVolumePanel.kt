@@ -12,7 +12,10 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
@@ -58,7 +61,8 @@ fun CompactSystemVolumePanel(
     notificationManagerProxy: NotificationManagerProxy,
     setRingerMode: (Int) -> Unit,
     isSliderVisible: (String) -> Boolean,
-    onChange: (() -> Unit)? = null
+    onChange: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val executor = remember(context) { ContextCompat.getMainExecutor(context) }
@@ -75,64 +79,75 @@ fun CompactSystemVolumePanel(
     }
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            if (inCallMode && isSliderVisible(SystemSliderIds.Call)) {
-                VerticalVolumeSlider(
-                    streamType = AudioManager.STREAM_VOICE_CALL,
-                    icon = Icons.Default.PhoneInTalk,
-                    name = stringResource(R.string.stream_call),
-                    audioManager = audioManager,
-                    onChange = onChange
-                )
-            }
-            if (isSliderVisible(SystemSliderIds.Media)) {
-                VerticalVolumeSlider(
-                    streamType = AudioManager.STREAM_MUSIC,
-                    icon = Icons.AutoMirrored.Filled.VolumeUp,
-                    name = stringResource(R.string.stream_media),
-                    audioManager = audioManager,
-                    onChange = onChange
-                )
-            }
-            if (isSliderVisible(SystemSliderIds.Ring)) {
-                VerticalVolumeSlider(
-                    streamType = AudioManager.STREAM_RING,
-                    icon = Icons.Default.RingVolume,
-                    name = stringResource(R.string.stream_ring),
-                    audioManager = audioManager,
-                    onChange = onChange
-                )
-            }
-            if (isSliderVisible(SystemSliderIds.Alarm)) {
-                VerticalVolumeSlider(
-                    streamType = AudioManager.STREAM_ALARM,
-                    icon = Icons.Default.Alarm,
-                    name = stringResource(R.string.stream_alarm),
-                    audioManager = audioManager,
-                    onChange = onChange
-                )
-            }
-            if (isSliderVisible(SystemSliderIds.Notification)) {
-                VerticalVolumeSlider(
-                    streamType = AudioManager.STREAM_NOTIFICATION,
-                    icon = Icons.Default.NotificationsActive,
-                    name = stringResource(R.string.stream_notification),
-                    audioManager = audioManager,
-                    onChange = onChange
-                )
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (inCallMode && isSliderVisible(SystemSliderIds.Call)) {
+                    VerticalVolumeSlider(
+                        streamType = AudioManager.STREAM_VOICE_CALL,
+                        icon = Icons.Default.PhoneInTalk,
+                        name = stringResource(R.string.stream_call),
+                        audioManager = audioManager,
+                        onChange = onChange
+                    )
+                }
+                if (isSliderVisible(SystemSliderIds.Media)) {
+                    VerticalVolumeSlider(
+                        streamType = AudioManager.STREAM_MUSIC,
+                        icon = Icons.AutoMirrored.Filled.VolumeUp,
+                        name = stringResource(R.string.stream_media),
+                        audioManager = audioManager,
+                        onChange = onChange
+                    )
+                }
+                if (isSliderVisible(SystemSliderIds.Ring)) {
+                    VerticalVolumeSlider(
+                        streamType = AudioManager.STREAM_RING,
+                        icon = Icons.Default.RingVolume,
+                        name = stringResource(R.string.stream_ring),
+                        audioManager = audioManager,
+                        onChange = onChange
+                    )
+                }
+                if (isSliderVisible(SystemSliderIds.Alarm)) {
+                    VerticalVolumeSlider(
+                        streamType = AudioManager.STREAM_ALARM,
+                        icon = Icons.Default.Alarm,
+                        name = stringResource(R.string.stream_alarm),
+                        audioManager = audioManager,
+                        onChange = onChange
+                    )
+                }
+                if (isSliderVisible(SystemSliderIds.Notification)) {
+                    VerticalVolumeSlider(
+                        streamType = AudioManager.STREAM_NOTIFICATION,
+                        icon = Icons.Default.NotificationsActive,
+                        name = stringResource(R.string.stream_notification),
+                        audioManager = audioManager,
+                        onChange = onChange
+                    )
+                }
             }
         }
 
         Box(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
             contentAlignment = Alignment.Center
         ) {
             RingFooter(

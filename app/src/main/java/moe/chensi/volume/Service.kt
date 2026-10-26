@@ -121,10 +121,22 @@ class Service : AccessibilityService() {
         }
 
         private fun adjustVolume() {
-            when (val target = repeatVolumeTarget ?: effectiveVolumeKeyTarget()) {
+            val target = repeatVolumeTarget ?: effectiveVolumeKeyTarget()
+            Log.i(
+                TAG,
+                "adjustVolume target=$target direction=$repeatAdjustVolumeDirection"
+            )
+            when (target) {
                 is VolumeKeyTarget.App -> {
                     val app = manager.apps[target.packageName]
-                    if (app == null) {
+                    if (app == null || !isSelectableVolumeKeyApp(app)) {
+                        Log.i(TAG, "App target ${target.packageName} is unavailable; using media")
+                        adjustSystemVolume()
+                    } else if (app.players.isEmpty()) {
+                        Log.i(
+                            TAG,
+                            "App target ${target.packageName} has no active player; using media"
+                        )
                         adjustSystemVolume()
                     } else {
                         val step = (app.volume * 20f).roundToInt()
@@ -132,6 +144,11 @@ class Service : AccessibilityService() {
                         if (nextStep != step) {
                             app.volume = nextStep / 20f
                         }
+                        Log.i(
+                            TAG,
+                            "Adjusted ${target.packageName} volume to ${app.volume} " +
+                                "(players=${app.players.size})"
+                        )
                     }
                 }
 
@@ -150,6 +167,9 @@ class Service : AccessibilityService() {
             } else {
                 AudioManager.STREAM_MUSIC
             }
+            val before = runCatching {
+                manager.audioManager.getStreamVolume(stream)
+            }.getOrDefault(-1)
             runCatching {
                 manager.audioManager.adjustStreamVolume(
                     stream, repeatAdjustVolumeDirection, 0
@@ -157,6 +177,33 @@ class Service : AccessibilityService() {
             }.onFailure {
                 Log.w(TAG, "Failed to adjust system volume", it)
             }
+            var after = runCatching {
+                manager.audioManager.getStreamVolume(stream)
+            }.getOrDefault(before)
+
+            if (before >= 0 && after == before) {
+                val max = runCatching {
+                    manager.audioManager.getStreamMaxVolume(stream)
+                }.getOrDefault(-1)
+                val fallback = (before + repeatAdjustVolumeDirection)
+                    .coerceIn(0, max.coerceAtLeast(0))
+                if (max > 0 && fallback != before) {
+                    runCatching {
+                        manager.audioManager.setStreamVolume(stream, fallback, 0)
+                    }.onFailure {
+                        Log.w(TAG, "Failed to set system volume fallback", it)
+                    }
+                    after = runCatching {
+                        manager.audioManager.getStreamVolume(stream)
+                    }.getOrDefault(after)
+                }
+            }
+
+            Log.i(
+                TAG,
+                "adjustSystemVolume stream=$stream direction=$repeatAdjustVolumeDirection " +
+                    "mode=$mode volume=$before->$after"
+            )
             VolumeChangeObserver.notifyVolumeChanged()
         }
 
@@ -266,13 +313,14 @@ class Service : AccessibilityService() {
                         onShowSystemVolume = this@Service::showSystemVolumePage,
                         onSelectApp = this@Service::selectVolumeKeyApp,
                         onChange = this@Service.handler::startIdleTimer,
-                        systemVolumeContent = {
+                        systemVolumeContent = { modifier ->
                             CompactSystemVolumePanel(
                                 audioManager = manager.audioManager,
                                 notificationManagerProxy = manager.notificationManagerProxy,
                                 setRingerMode = manager::setRingerMode,
                                 isSliderVisible = manager::isSystemSliderVisible,
-                                onChange = this@Service.handler::startIdleTimer
+                                onChange = this@Service.handler::startIdleTimer,
+                                modifier = modifier
                             )
                         }
                     )
@@ -365,7 +413,7 @@ class Service : AccessibilityService() {
         val target = volumeKeyTarget
         if (target is VolumeKeyTarget.App) {
             val app = manager.apps[target.packageName]
-            if (app != null && isSelectableVolumeKeyApp(app)) {
+            if (app != null && isVolumeKeyTargetApp(app) && app.players.isNotEmpty()) {
                 return
             }
         }
@@ -377,7 +425,7 @@ class Service : AccessibilityService() {
         val target = volumeKeyTarget
         if (target is VolumeKeyTarget.App) {
             val app = manager.apps[target.packageName]
-            if (app != null && isSelectableVolumeKeyApp(app)) {
+            if (app != null && isSelectableVolumeKeyApp(app) && app.players.isNotEmpty()) {
                 return target
             }
         }

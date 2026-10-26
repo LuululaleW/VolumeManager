@@ -159,7 +159,7 @@ data class App(
                 continue
             }
 
-            Log.d(
+            Log.i(
                 "AppVolManager",
                 "replace player $packageName ${config.clientPid} ${config.playerTypeName} ${config.playerStateName}"
             )
@@ -173,6 +173,11 @@ data class App(
             validPlayers.add(config)
         }
 
+        Log.i(
+            "AppVolManager",
+            "replace players $packageName configs=${configs.size} valid=${validPlayers.size} " +
+                "playing=$playing volume=$_volume"
+        )
         _players.clear()
         _players.addAll(validPlayers)
         isPlaying = playing
@@ -187,6 +192,11 @@ data class App(
         }
         // Remove dead players
         _players.removeAll(deadPlayers)
+        Log.i(
+            "AppVolManager",
+            "apply volume $packageName=$value players=${players.size} " +
+                "dead=${deadPlayers.size}"
+        )
     }
 
     private var _isPlayer by mutableStateOf(preferences.isPlayer)

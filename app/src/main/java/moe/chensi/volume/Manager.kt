@@ -115,22 +115,30 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
 
     @EnableBinderProxy
     private fun initialize() {
-        runCatching { reloadApps() }
-            .onFailure { Log.e(TAG, "Failed to load apps", it) }
+        val shizukuGranted = runCatching {
+            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        }.getOrDefault(false)
+        Log.i(TAG, "initialize shizuku=$shizukuGranted")
+        ToggleableBinderProxy.withEnabled {
+            runCatching { reloadApps() }
+                .onFailure { Log.e(TAG, "Failed to load apps", it) }
 
-        runCatching {
-            processAudioPlaybackConfigurations(readPlaybackConfigurations())
-        }.onFailure { Log.e(TAG, "Failed to read playback configurations", it) }
+            runCatching {
+                val configs = readPlaybackConfigurations()
+                Log.i(TAG, "Initial playback configurations: ${configs.size}")
+                processAudioPlaybackConfigurations(configs)
+            }.onFailure { Log.e(TAG, "Failed to read playback configurations", it) }
 
-        runCatching {
-            audioManager.registerAudioPlaybackCallback(
-                object : AudioManager.AudioPlaybackCallback() {
-                    override fun onPlaybackConfigChanged(configs: MutableList<AudioPlaybackConfiguration>) {
-                        processAudioPlaybackConfigurations(configs)
-                    }
-                }, null
-            )
-        }.onFailure { Log.e(TAG, "Failed to register playback callback", it) }
+            runCatching {
+                audioManager.registerAudioPlaybackCallback(
+                    object : AudioManager.AudioPlaybackCallback() {
+                        override fun onPlaybackConfigChanged(configs: MutableList<AudioPlaybackConfiguration>) {
+                            processAudioPlaybackConfigurations(configs)
+                        }
+                    }, null
+                )
+            }.onFailure { Log.e(TAG, "Failed to register playback callback", it) }
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -150,28 +158,46 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
 
     @EnableBinderProxy
     fun refreshPlaybackConfigurations() {
-        runCatching {
-            processAudioPlaybackConfigurations(readPlaybackConfigurations())
-        }.onFailure {
-            Log.w(TAG, "Failed to refresh playback configurations", it)
+        ToggleableBinderProxy.withEnabled {
+            runCatching {
+                processAudioPlaybackConfigurations(readPlaybackConfigurations())
+            }.onFailure {
+                Log.w(TAG, "Failed to refresh playback configurations", it)
+            }
         }
+    }
+
+    private fun playerCount(configs: List<AudioPlaybackConfiguration>): Int {
+        return configs.count { AudioPlaybackConfigurationProxy(it).hasPlayer }
     }
 
     private fun readPlaybackConfigurations(): List<AudioPlaybackConfiguration> {
         val proxied = runCatching { audioManager.activePlaybackConfigurations }
             .onFailure { Log.w(TAG, "Failed to read proxied playback configurations", it) }
             .getOrDefault(emptyList())
-        if (proxied.isNotEmpty()) {
+        val proxiedPlayers = playerCount(proxied)
+        Log.i(
+            TAG,
+            "Playback configurations via Shizuku: total=${proxied.size}, " +
+                "players=$proxiedPlayers, enabled=${ToggleableBinderProxy.enabled}"
+        )
+        if (proxied.isNotEmpty() && proxiedPlayers > 0) {
             return proxied
         }
 
         val previous = ToggleableBinderProxy.enabled
         return try {
             ToggleableBinderProxy.enabled = false
-            audioManager.activePlaybackConfigurations
+            val direct = audioManager.activePlaybackConfigurations
+            val directPlayers = playerCount(direct)
+            Log.i(
+                TAG,
+                "Playback configurations direct: total=${direct.size}, players=$directPlayers"
+            )
+            if (direct.isNotEmpty() && directPlayers > 0 || proxied.isEmpty()) direct else proxied
         } catch (error: Throwable) {
             Log.w(TAG, "Failed to read direct playback configurations", error)
-            emptyList()
+            proxied
         } finally {
             ToggleableBinderProxy.enabled = previous
         }
@@ -180,10 +206,14 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
     @SuppressLint("DiscouragedPrivateApi")
     @EnableBinderProxy
     fun processAudioPlaybackConfigurations(configs: List<AudioPlaybackConfiguration>) {
-        val runningProcesses = runCatching { activityManager.runningAppProcesses }
-            .onFailure { Log.e(TAG, "Failed to read running processes", it) }
-            .getOrNull()
-            .orEmpty()
+        val runningProcesses = ToggleableBinderProxy.withEnabled {
+            runCatching { activityManager.runningAppProcesses }
+                .onFailure { Log.e(TAG, "Failed to read running processes", it) }
+                .getOrNull()
+                .orEmpty()
+        }
+
+        Log.i(TAG, "Processing playback configurations: count=${configs.size}")
 
         val packagesByPid = mutableMapOf<Int, MutableList<String>>()
         for (process in runningProcesses) {
@@ -200,7 +230,15 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
         for (config in configs) {
             val proxy = AudioPlaybackConfigurationProxy(config)
             val packageName = resolveAudioPackage(proxy, packagesByPid, packagesByUid)
-                ?: continue
+            Log.i(
+                TAG,
+                "Config uid=${proxy.clientUid} pid=${proxy.clientPid} " +
+                    "type=${proxy.playerTypeName} state=${proxy.playerStateName} " +
+                    "hasPlayer=${proxy.hasPlayer} playing=${proxy.isPlaying} package=$packageName"
+            )
+            if (packageName == null) {
+                continue
+            }
 
             runCatching { getApp(packageName) }
                 .onFailure { Log.w(TAG, "Failed to resolve app $packageName", it) }

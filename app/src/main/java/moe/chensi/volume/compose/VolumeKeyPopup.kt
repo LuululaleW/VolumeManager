@@ -3,7 +3,9 @@ package moe.chensi.volume.compose
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -38,11 +40,12 @@ fun VolumeKeyPopup(
     onShowSystemVolume: () -> Unit,
     onSelectApp: (App) -> Unit,
     onChange: () -> Unit,
-    systemVolumeContent: @Composable () -> Unit
+    systemVolumeContent: @Composable (Modifier) -> Unit
 ) {
     val maxHeight = (
         LocalConfiguration.current.screenHeightDp * maxHeightPercent / 100f
         ).dp
+    val systemHeight = maxHeight.coerceAtLeast(280.dp)
     val selected = selectedApp?.takeUnless { it.hidden }
     val playingApps = apps
         .filter { it.isPlaying && !it.hidden }
@@ -66,19 +69,25 @@ fun VolumeKeyPopup(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(max = maxHeight),
+            .then(
+                if (showAppVolumes) {
+                    Modifier.heightIn(max = maxHeight)
+                } else {
+                    Modifier.height(systemHeight)
+                }
+            ),
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = opacity),
         contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 6.dp
     ) {
-        Column(
-            modifier = Modifier
-                .verticalScroll(rememberScrollState())
-                .padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            if (showAppVolumes) {
+        if (showAppVolumes) {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 AppVolumesHeader(onShowSystemVolume = onShowSystemVolume)
                 AppVolumeGroups(
                     selected = selected,
@@ -90,9 +99,16 @@ fun VolumeKeyPopup(
                     onSelectApp = onSelectApp,
                     onChange = onChange
                 )
-            } else {
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 SystemVolumeHeader(onShowAppVolumes = onShowAppVolumes)
-                systemVolumeContent()
+                systemVolumeContent(Modifier.weight(1f))
             }
         }
     }
