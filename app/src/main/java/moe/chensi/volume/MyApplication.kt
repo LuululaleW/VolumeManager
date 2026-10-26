@@ -19,15 +19,18 @@ class MyApplication : Application() {
         const val DEFAULT_FLOATING_BUTTON_SIZE_DP = 56
         const val FLOATING_BUTTON_SIZE_STEP_DP = 4
 
-        const val MIN_POPUP_WIDTH_DP = 200
+        const val MIN_POPUP_WIDTH_DP = 150
         const val MAX_POPUP_WIDTH_DP = 420
-        const val DEFAULT_POPUP_WIDTH_DP = 250
+        const val DEFAULT_POPUP_WIDTH_DP = 220
         const val MIN_POPUP_HEIGHT_PERCENT = 25
         const val MAX_POPUP_HEIGHT_PERCENT = 80
         const val DEFAULT_POPUP_HEIGHT_PERCENT = 45
         const val MIN_POPUP_OPACITY = 0.5f
         const val MAX_POPUP_OPACITY = 1f
         const val DEFAULT_POPUP_OPACITY = 0.96f
+        const val MIN_POPUP_VERTICAL_OFFSET_DP = -240
+        const val MAX_POPUP_VERTICAL_OFFSET_DP = 240
+        const val DEFAULT_POPUP_VERTICAL_OFFSET_DP = 0
 
         private const val FLOATING_BUTTON_PREFERENCES = "floating_button"
         private const val KEY_FLOATING_BUTTON_ENABLED = "enabled"
@@ -41,6 +44,7 @@ class MyApplication : Application() {
         private const val KEY_POPUP_OPACITY = "popup_opacity"
         private const val KEY_POPUP_SIDE = "popup_side"
         private const val KEY_POPUP_VERTICAL = "popup_vertical"
+        private const val KEY_POPUP_VERTICAL_OFFSET_DP = "popup_vertical_offset_dp"
     }
 
     val dataStore: DataStore<Preferences> by preferencesDataStore(name = "app_volumes")
@@ -118,7 +122,11 @@ class MyApplication : Application() {
                         PopupVertical.Center.name
                     ) ?: PopupVertical.Center.name
                 )
-            }.getOrDefault(PopupVertical.Center)
+            }.getOrDefault(PopupVertical.Center),
+            verticalOffsetDp = appearancePreferences.getInt(
+                KEY_POPUP_VERTICAL_OFFSET_DP,
+                DEFAULT_POPUP_VERTICAL_OFFSET_DP
+            ).coerceIn(MIN_POPUP_VERTICAL_OFFSET_DP, MAX_POPUP_VERTICAL_OFFSET_DP)
         )
     }
 
@@ -160,7 +168,11 @@ class MyApplication : Application() {
                     MIN_POPUP_HEIGHT_PERCENT,
                     MAX_POPUP_HEIGHT_PERCENT
                 ),
-                opacity = it.opacity.coerceIn(MIN_POPUP_OPACITY, MAX_POPUP_OPACITY)
+                opacity = it.opacity.coerceIn(MIN_POPUP_OPACITY, MAX_POPUP_OPACITY),
+                verticalOffsetDp = it.verticalOffsetDp.coerceIn(
+                    MIN_POPUP_VERTICAL_OFFSET_DP,
+                    MAX_POPUP_VERTICAL_OFFSET_DP
+                )
             )
         }
         if (next == current) {
@@ -173,6 +185,7 @@ class MyApplication : Application() {
             putFloat(KEY_POPUP_OPACITY, next.opacity)
             putString(KEY_POPUP_SIDE, next.side.name)
             putString(KEY_POPUP_VERTICAL, next.vertical.name)
+            putInt(KEY_POPUP_VERTICAL_OFFSET_DP, next.verticalOffsetDp)
         }
         _popupAppearance.value = next
     }

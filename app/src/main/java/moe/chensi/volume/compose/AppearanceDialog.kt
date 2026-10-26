@@ -143,6 +143,23 @@ fun AppearanceDialog(
                         )
                     }
                 }
+
+                Text(
+                    text = stringResource(
+                        R.string.popup_vertical_offset,
+                        popupAppearance.verticalOffsetDp
+                    )
+                )
+                Slider(
+                    value = popupAppearance.verticalOffsetDp.toFloat(),
+                    onValueChange = { value ->
+                        onPopupAppearanceChange {
+                            it.copy(verticalOffsetDp = value.roundToInt())
+                        }
+                    },
+                    valueRange = MyApplication.MIN_POPUP_VERTICAL_OFFSET_DP.toFloat()..
+                        MyApplication.MAX_POPUP_VERTICAL_OFFSET_DP.toFloat()
+                )
             }
         },
         confirmButton = {

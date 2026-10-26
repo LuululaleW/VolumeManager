@@ -63,6 +63,10 @@ class AudioPlaybackConfigurationProxy(raw: AudioPlaybackConfiguration) {
 
     val isPlaying: Boolean
         get() {
+            runCatching { reflect.call("isActive").get<Boolean>() }
+                .getOrNull()
+                ?.let { return it }
+
             if (playerType == 3) {
                 return true
             }

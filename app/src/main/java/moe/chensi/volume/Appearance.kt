@@ -22,5 +22,6 @@ data class PopupAppearance(
     val maxHeightPercent: Int = MyApplication.DEFAULT_POPUP_HEIGHT_PERCENT,
     val opacity: Float = MyApplication.DEFAULT_POPUP_OPACITY,
     val side: PopupSide = PopupSide.Right,
-    val vertical: PopupVertical = PopupVertical.Center
+    val vertical: PopupVertical = PopupVertical.Center,
+    val verticalOffsetDp: Int = MyApplication.DEFAULT_POPUP_VERTICAL_OFFSET_DP
 )

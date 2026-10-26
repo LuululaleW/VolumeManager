@@ -17,7 +17,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,7 +37,6 @@ fun VolumeKeyPopup(
     onShowAppVolumes: () -> Unit,
     onShowSystemVolume: () -> Unit,
     onSelectApp: (App) -> Unit,
-    onRefresh: () -> Unit,
     onChange: () -> Unit,
     systemVolumeContent: @Composable () -> Unit
 ) {
@@ -56,20 +54,29 @@ fun VolumeKeyPopup(
         .sortedByDescending { it.lastPlayedAt }
     val listedPackages = (playingApps + recentApps).mapTo(mutableSetOf()) { it.packageName }
     val selectedOnly = selected?.takeUnless { it.packageName in listedPackages }
+    val fallbackApps = if (
+        selectedOnly == null && playingApps.isEmpty() && recentApps.isEmpty()
+    ) {
+        apps.filter { it.shouldShowInAppPicker && !it.hidden }
+            .sortedWith(App.comparator)
+    } else {
+        emptyList()
+    }
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = maxHeight),
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = opacity),
+        contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 6.dp
     ) {
         Column(
             modifier = Modifier
                 .verticalScroll(rememberScrollState())
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             if (showAppVolumes) {
                 AppVolumesHeader(onShowSystemVolume = onShowSystemVolume)
@@ -78,10 +85,10 @@ fun VolumeKeyPopup(
                     selectedOnly = selectedOnly,
                     playingApps = playingApps,
                     recentApps = recentApps,
+                    fallbackApps = fallbackApps,
                     hooksEnabled = hooksEnabled,
                     onSelectApp = onSelectApp,
-                    onChange = onChange,
-                    onRefresh = onRefresh
+                    onChange = onChange
                 )
             } else {
                 SystemVolumeHeader(onShowAppVolumes = onShowAppVolumes)
@@ -137,28 +144,11 @@ private fun AppVolumeGroups(
     selectedOnly: App?,
     playingApps: List<App>,
     recentApps: List<App>,
+    fallbackApps: List<App>,
     hooksEnabled: Boolean,
     onSelectApp: (App) -> Unit,
-    onChange: () -> Unit,
-    onRefresh: () -> Unit
+    onChange: () -> Unit
 ) {
-    if (selectedOnly == null && playingApps.isEmpty() && recentApps.isEmpty()) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = stringResource(R.string.no_active_audio_apps),
-                style = MaterialTheme.typography.bodyMedium
-            )
-            TextButton(onClick = onRefresh) {
-                Text(stringResource(R.string.refresh))
-            }
-        }
-        return
-    }
-
     val selectedTitle = if (selectedOnly != null) {
         stringResource(R.string.selected_app)
     } else {
@@ -171,6 +161,11 @@ private fun AppVolumeGroups(
     }
     val recentTitle = if (recentApps.isNotEmpty()) {
         stringResource(R.string.recently_paused)
+    } else {
+        null
+    }
+    val fallbackTitle = if (fallbackApps.isNotEmpty()) {
+        stringResource(R.string.all_apps)
     } else {
         null
     }
@@ -194,6 +189,14 @@ private fun AppVolumeGroups(
     AppVolumeGroup(
         title = recentTitle,
         apps = recentApps,
+        selected = selected,
+        hooksEnabled = hooksEnabled,
+        onSelectApp = onSelectApp,
+        onChange = onChange
+    )
+    AppVolumeGroup(
+        title = fallbackTitle,
+        apps = fallbackApps,
         selected = selected,
         hooksEnabled = hooksEnabled,
         onSelectApp = onSelectApp,

@@ -101,4 +101,6 @@
     <string name="popup_top">顶部</string>
     <string name="popup_center">居中</string>
     <string name="popup_bottom">底部</string>
+    <string name="popup_vertical_offset">垂直偏移：%1$d dp</string>
+    <string name="all_apps">所有应用</string>
 </resources>

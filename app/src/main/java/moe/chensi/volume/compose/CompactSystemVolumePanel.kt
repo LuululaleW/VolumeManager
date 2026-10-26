@@ -185,8 +185,8 @@ private fun VerticalVolumeSlider(
             .coerceIn(0, maxVolume)
     }
 
-    val sliderHeight = 128.dp
-    val sliderWidth = 32.dp
+    val sliderHeight = 120.dp
+    val sliderWidth = 28.dp
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
     val activeColor = MaterialTheme.colorScheme.primary
 
@@ -268,7 +268,7 @@ private fun VerticalVolumeSlider(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(22.dp),
             tint = MaterialTheme.colorScheme.onSurface
         )
     }

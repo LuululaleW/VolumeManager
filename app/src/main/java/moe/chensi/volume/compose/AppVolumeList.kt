@@ -24,7 +24,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -91,7 +90,6 @@ fun AppVolumeList(
     selectedVolumeKeyPackage: String? = null,
     onSelectVolumeKeyApp: ((App) -> Unit)? = null,
     onChange: (() -> Unit)? = null,
-    onShowAll: (() -> Unit)? = null,
     content: (LazyListScope.() -> Unit)? = null,
     contentAfter: (LazyListScope.() -> Unit)? = null
 ) {
@@ -167,21 +165,29 @@ fun AppVolumeList(
                     )
                 }
             } else if (showEmpty) {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 48.dp),
-                        verticalArrangement = Arrangement.spacedBy(
-                            12.dp, Alignment.CenterVertically
-                        ),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(text = stringResource(R.string.no_active_players))
-
-                        Button(onClick = { onShowAll?.invoke() }) {
-                            Text(text = stringResource(R.string.show_all_apps))
-                        }
+                val fallbackApps = apps.filter {
+                    it.shouldShowInAppPicker && !it.hidden
+                }.sortedWith(App.comparator)
+                if (fallbackApps.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.all_apps),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp)
+                        )
+                    }
+                    items(items = fallbackApps, key = { app -> app.packageName }) { app ->
+                        AppVolumeSlider(
+                            app,
+                            showOptions = false,
+                            onChange = onChange,
+                            showVolumeButtonToggle = showVolumeButtonToggle,
+                            selectedForVolumeKeys = app.packageName == selectedVolumeKeyPackage,
+                            onSelectForVolumeKeys = onSelectVolumeKeyApp?.let { select ->
+                                { select(app) }
+                            }
+                        )
                     }
                 }
             }

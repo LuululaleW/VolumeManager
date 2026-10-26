@@ -93,6 +93,15 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
         }
     }
 
+    fun ensureAppsLoaded() {
+        if (apps.isNotEmpty()) {
+            return
+        }
+
+        runCatching { reloadApps() }
+            .onFailure { Log.w(TAG, "Failed to ensure apps are loaded", it) }
+    }
+
     private fun getApp(packageName: String): App? {
         val app = apps[packageName]
         if (app != null) {
@@ -110,8 +119,7 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
             .onFailure { Log.e(TAG, "Failed to load apps", it) }
 
         runCatching {
-            val playbackConfigurations = audioManager.activePlaybackConfigurations
-            processAudioPlaybackConfigurations(playbackConfigurations)
+            processAudioPlaybackConfigurations(readPlaybackConfigurations())
         }.onFailure { Log.e(TAG, "Failed to read playback configurations", it) }
 
         runCatching {
@@ -143,9 +151,29 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
     @EnableBinderProxy
     fun refreshPlaybackConfigurations() {
         runCatching {
-            processAudioPlaybackConfigurations(audioManager.activePlaybackConfigurations)
+            processAudioPlaybackConfigurations(readPlaybackConfigurations())
         }.onFailure {
             Log.w(TAG, "Failed to refresh playback configurations", it)
+        }
+    }
+
+    private fun readPlaybackConfigurations(): List<AudioPlaybackConfiguration> {
+        val proxied = runCatching { audioManager.activePlaybackConfigurations }
+            .onFailure { Log.w(TAG, "Failed to read proxied playback configurations", it) }
+            .getOrDefault(emptyList())
+        if (proxied.isNotEmpty()) {
+            return proxied
+        }
+
+        val previous = ToggleableBinderProxy.enabled
+        return try {
+            ToggleableBinderProxy.enabled = false
+            audioManager.activePlaybackConfigurations
+        } catch (error: Throwable) {
+            Log.w(TAG, "Failed to read direct playback configurations", error)
+            emptyList()
+        } finally {
+            ToggleableBinderProxy.enabled = previous
         }
     }
 

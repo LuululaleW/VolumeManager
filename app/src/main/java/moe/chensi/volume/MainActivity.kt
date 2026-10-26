@@ -503,7 +503,6 @@ class MainActivity : ComponentActivity() {
                                     showEmpty = true,
                                     showAll = showAll,
                                     showVolumeButtonToggle = systemVolumeButtonHooksEnabled,
-                                    onShowAll = { showAll = true },
                                     content = {
                                         item("system_volume_panel_main") {
                                             SystemVolumePanel(

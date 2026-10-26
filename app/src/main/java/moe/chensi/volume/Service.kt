@@ -256,7 +256,6 @@ class Service : AccessibilityService() {
                         onShowAppVolumes = this@Service::showAppVolumePage,
                         onShowSystemVolume = this@Service::showSystemVolumePage,
                         onSelectApp = this@Service::selectVolumeKeyApp,
-                        onRefresh = manager::refreshPlaybackConfigurations,
                         onChange = this@Service.handler::startIdleTimer,
                         systemVolumeContent = {
                             CompactSystemVolumePanel(
@@ -300,14 +299,16 @@ class Service : AccessibilityService() {
             PopupVertical.Bottom -> Gravity.BOTTOM
         }
 
-        layoutParams.width = (appearance.widthDp * density).roundToInt()
-        layoutParams.gravity = horizontalGravity or verticalGravity
-        layoutParams.x = (12 * density).roundToInt()
-        layoutParams.y = if (appearance.vertical == PopupVertical.Center) {
+        val baseY = if (appearance.vertical == PopupVertical.Center) {
             0
         } else {
             (48 * density).roundToInt()
         }
+
+        layoutParams.width = (appearance.widthDp * density).roundToInt()
+        layoutParams.gravity = horizontalGravity or verticalGravity
+        layoutParams.x = (12 * density).roundToInt()
+        layoutParams.y = baseY + (appearance.verticalOffsetDp * density).roundToInt()
 
         view?.let {
             runCatching { windowManager.updateViewLayout(it, layoutParams) }
@@ -375,6 +376,7 @@ class Service : AccessibilityService() {
     }
 
     private fun showAppVolumePage() {
+        manager.ensureAppsLoaded()
         manager.refreshPlaybackConfigurations()
         if (effectiveVolumeKeyTarget() !is VolumeKeyTarget.App) {
             pickAppForVolumeKeys()?.let {
