@@ -24,6 +24,15 @@
     <string name="about_github">View on GitHub</string>
     <string name="jump_to_group">Jump to group</string>
     <string name="stream_media">Media</string>
+    <string name="volume_key_target">Volume keys</string>
+    <string name="volume_key_target_app">App</string>
+    <string name="use_volume_keys_for_app">Use volume keys for %1$s</string>
+    <string name="popup_apps_button">Choose apps shown in popup</string>
+    <string name="popup_apps_title">Apps in popup</string>
+    <string name="search_apps">Search apps</string>
+    <string name="show_in_popup">Show in popup</string>
+    <string name="enable_all_apps">Show all</string>
+    <string name="no_matching_apps">No matching apps</string>
     <string name="stream_ring">Ring</string>
     <string name="stream_call">Call</string>
     <string name="stream_alarm">Alarm</string>

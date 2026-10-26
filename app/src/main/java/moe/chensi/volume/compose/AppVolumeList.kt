@@ -88,9 +88,12 @@ fun AppVolumeList(
     showEmpty: Boolean = false,
     showAll: Boolean,
     showVolumeButtonToggle: Boolean = true,
+    selectedVolumeKeyPackage: String? = null,
+    onSelectVolumeKeyApp: ((App) -> Unit)? = null,
     onChange: (() -> Unit)? = null,
     onShowAll: (() -> Unit)? = null,
-    content: (LazyListScope.() -> Unit)? = null
+    content: (LazyListScope.() -> Unit)? = null,
+    contentAfter: (LazyListScope.() -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -121,6 +124,8 @@ fun AppVolumeList(
             }
         }
     }
+
+    activePlayers.sortByDescending { it.lastPlayedAt }
 
     val groups = buildList<Group> {
         var currentIndex = 0
@@ -160,7 +165,11 @@ fun AppVolumeList(
                         app,
                         showOptions = false,
                         onChange = onChange,
-                        showVolumeButtonToggle = showVolumeButtonToggle
+                        showVolumeButtonToggle = showVolumeButtonToggle,
+                        selectedForVolumeKeys = app.packageName == selectedVolumeKeyPackage,
+                        onSelectForVolumeKeys = onSelectVolumeKeyApp?.let { select ->
+                            { select(app) }
+                        }
                     )
                 }
             } else if (showEmpty) {
@@ -182,6 +191,7 @@ fun AppVolumeList(
                     }
                 }
             }
+            contentAfter?.invoke(this)
             return@LazyColumn
         }
 

@@ -38,6 +38,9 @@ class AudioPlaybackConfigurationProxy(raw: AudioPlaybackConfiguration) {
     val clientPid: Int
         get() = runCatching { reflect.get<Int>("mClientPid") }.getOrDefault(-1)
 
+    val clientUid: Int
+        get() = runCatching { reflect.get<Int>("mClientUid") }.getOrDefault(-1)
+
     val playerType: Int
         get() = runCatching { reflect.get<Int>("mPlayerType") }.getOrDefault(-1)
 

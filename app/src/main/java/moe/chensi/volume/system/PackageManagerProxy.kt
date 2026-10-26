@@ -59,4 +59,8 @@ class PackageManagerProxy private constructor(context: Context) {
     fun loadLabel(appInfo: ApplicationInfo): String {
         return appInfo.loadLabel(packageManager).toString()
     }
+
+    fun getPackagesForUid(uid: Int): Array<String>? {
+        return packageManager.getPackagesForUid(uid)
+    }
 }

@@ -3,6 +3,7 @@ package moe.chensi.volume.data
 import android.content.pm.PackageInfo
 import android.icu.text.Collator
 import android.icu.text.Transliterator
+import android.os.SystemClock
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -32,6 +33,7 @@ data class App(
 ) {
     companion object {
         private const val HAS_BEEN_PLAYING_RECENTLY_TIMEOUT_MILLIS = 10_000L
+        private const val VOLUME_SAVE_DEBOUNCE_MILLIS = 250L
 
         val collator: Collator by lazy {
             Collator.getInstance().apply {
@@ -136,34 +138,47 @@ data class App(
     val players: List<AudioPlaybackConfigurationProxy> = _players
 
     fun clearPlayers() {
+        if (_players.isEmpty() && !isPlaying) {
+            return
+        }
+
         _players.clear()
         isPlaying = false
     }
 
-    fun addPlayer(config: AudioPlaybackConfigurationProxy) {
-        // Set app as player even if the player is released
-        isPlayer = true
+    fun replacePlayers(configs: List<AudioPlaybackConfigurationProxy>) {
+        val validPlayers = mutableListOf<AudioPlaybackConfigurationProxy>()
+        var playing = false
 
-        if (!config.hasPlayer) {
-            return
+        for (config in configs) {
+            // Set app as player even if the player is released
+            isPlayer = true
+
+            if (!config.hasPlayer) {
+                continue
+            }
+
+            Log.d(
+                "AppVolManager",
+                "replace player $packageName ${config.clientPid} ${config.playerTypeName} ${config.playerStateName}"
+            )
+
+            // Apply volume to potentially new player
+            if (!config.setVolume(_volume)) {
+                // Player is dead, don't add it
+                continue
+            }
+
+            validPlayers.add(config)
+
+            if (config.isPlaying) {
+                playing = true
+            }
         }
 
-        Log.d(
-            "AppVolManager",
-            "add player $packageName ${config.clientPid} ${config.playerTypeName} ${config.playerStateName}"
-        )
-
-        // Apply volume to potentially new player
-        if (!config.setVolume(_volume)) {
-            // Player is dead, don't add it
-            return
-        }
-
-        _players.add(config)
-
-        if (config.isPlaying) {
-            isPlaying = true
-        }
+        _players.clear()
+        _players.addAll(validPlayers)
+        isPlaying = playing
     }
 
     fun applyVolume(value: Float) {
@@ -202,6 +217,7 @@ data class App(
             val version = hasBeenPlayingRecentlyVersion.incrementAndGet()
 
             if (value) {
+                lastPlayedAt = SystemClock.elapsedRealtime()
                 Snapshot.withMutableSnapshot {
                     _hasBeenPlayingRecently = true
                 }
@@ -228,6 +244,11 @@ data class App(
     val hasBeenPlayingRecently: Boolean
         get() = _hasBeenPlayingRecently
 
+    var lastPlayedAt: Long = 0L
+        private set
+
+    private var volumeSaveJob: Job? = null
+
     private var _volume by mutableFloatStateOf(preferences.volume)
     var volume
         get() = _volume
@@ -240,7 +261,11 @@ data class App(
 
             _volume = value
             preferences.volume = value
-            savePreferences()
+            volumeSaveJob?.cancel()
+            volumeSaveJob = scope.launch {
+                delay(VOLUME_SAVE_DEBOUNCE_MILLIS)
+                savePreferences()
+            }
         }
 
     private var _hidden by mutableStateOf(preferences.hidden)

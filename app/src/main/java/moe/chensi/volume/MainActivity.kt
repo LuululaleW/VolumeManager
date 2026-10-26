@@ -24,11 +24,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Info
@@ -38,6 +41,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -72,6 +76,7 @@ import kotlinx.coroutines.launch
 import moe.chensi.volume.compose.AboutDialog
 import moe.chensi.volume.compose.AppVolumeList
 import moe.chensi.volume.compose.CrashReportDialog
+import moe.chensi.volume.compose.PopupAppsDialog
 import moe.chensi.volume.compose.SystemVolumePanel
 import moe.chensi.volume.compose.ToggleButton
 import moe.chensi.volume.ui.theme.VolumeManagerTheme
@@ -171,6 +176,7 @@ class MainActivity : ComponentActivity() {
             var showAll by remember { mutableStateOf(false) }
             var crashReport by remember { mutableStateOf<String?>(null) }
             var showAboutDialog by remember { mutableStateOf(false) }
+            var showPopupAppsDialog by remember { mutableStateOf(false) }
 
             LaunchedEffect(showCrashReport) {
                 if (showCrashReport) {
@@ -364,6 +370,18 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier.fillMaxWidth(),
                                         verticalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
+                                        OutlinedButton(
+                                            onClick = { showPopupAppsDialog = true },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Apps,
+                                                contentDescription = null
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(stringResource(R.string.popup_apps_button))
+                                        }
+
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -463,6 +481,13 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+                }
+
+                if (showPopupAppsDialog) {
+                    PopupAppsDialog(
+                        apps = manager.apps.values,
+                        onDismiss = { showPopupAppsDialog = false }
+                    )
                 }
             }
         }

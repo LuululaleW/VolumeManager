@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -39,8 +40,12 @@ fun AppVolumeSlider(
     showOptions: Boolean,
     enableHide: Boolean = true,
     onChange: (() -> Unit)? = null,
-    showVolumeButtonToggle: Boolean = true
+    showVolumeButtonToggle: Boolean = true,
+    selectedForVolumeKeys: Boolean = false,
+    onSelectForVolumeKeys: (() -> Unit)? = null
 ) {
+    val volumeKeyDescription = stringResource(R.string.use_volume_keys_for_app, app.name)
+
     Row(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -91,6 +96,16 @@ fun AppVolumeSlider(
                     maxLines = 1,
                 )
             }
+        }
+
+        if (onSelectForVolumeKeys != null) {
+            RadioButton(
+                selected = selectedForVolumeKeys,
+                onClick = onSelectForVolumeKeys,
+                modifier = Modifier.semantics {
+                    contentDescription = volumeKeyDescription
+                }
+            )
         }
 
         if (showOptions) {

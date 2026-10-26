@@ -25,6 +25,15 @@
     <string name="about_github">在 GitHub 上查看</string>
     <string name="jump_to_group">跳转到分组</string>
     <string name="stream_media">媒体</string>
+    <string name="volume_key_target">音量键</string>
+    <string name="volume_key_target_app">应用</string>
+    <string name="use_volume_keys_for_app">使用音量键调节%1$s</string>
+    <string name="popup_apps_button">选择弹出面板中显示的应用</string>
+    <string name="popup_apps_title">弹出面板应用</string>
+    <string name="search_apps">搜索应用</string>
+    <string name="show_in_popup">在弹出面板中显示</string>
+    <string name="enable_all_apps">全部显示</string>
+    <string name="no_matching_apps">没有匹配的应用</string>
     <string name="stream_ring">铃声</string>
     <string name="stream_call">通话</string>
     <string name="stream_alarm">闹钟</string>

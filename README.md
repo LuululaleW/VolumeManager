@@ -27,9 +27,10 @@ Some hand-picked versions can also be downloaded from [releases](https://github.
 3. It should automatically enable its accessibility service
 4. You can change apps' volume from
    1. The main interface
-   2. Press any volume button (enabled by default, can be switched off per app or globally in settings)
+   2. Press any volume button. The popup targets the active app by default; use the App/Media switch to control the system media volume instead. The hooks can be switched off per app or globally in settings.
    3. Floating button (disabled by default, can be switched on in settings)
    4. Add the Quick Settings tile; tap it to open the popup or long-press it to open the main interface
+5. Use **Choose apps shown in popup** in settings to search for apps and choose which ones appear in the volume popup.
 
 ## Compare to [SoundMaster from ShizuTools](https://github.com/legendsayantan/ShizuTools/wiki/SoundMaster)
 
@@ -39,7 +40,7 @@ SoundMaster uses MediaProjection API to record audio from each app and apply pos
 
 | Feature                        | Volume Manager  | SoundMaster     |
 | ------------------------------ | --------------- | --------------- |
-| Minimal Android version        | 13              | 10              |
+| Minimal Android version        | 12              | 10              |
 | Control volume of each app     | ✅              | ✅              |
 | Set output device for each app | ❌ <sup>1</sup> | ✅              |
 | Change left-right balance      | ❌ <sup>2</sup> | ✅              |

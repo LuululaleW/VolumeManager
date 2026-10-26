@@ -118,9 +118,6 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
             audioManager.registerAudioPlaybackCallback(
                 object : AudioManager.AudioPlaybackCallback() {
                     override fun onPlaybackConfigChanged(configs: MutableList<AudioPlaybackConfiguration>) {
-                        for (app in apps.values) {
-                            app.clearPlayers()
-                        }
                         processAudioPlaybackConfigurations(configs)
                     }
                 }, null
@@ -136,16 +133,36 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
             .getOrNull()
             .orEmpty()
 
+        val processPackages = runningProcesses.mapNotNull { process ->
+            process.pkgList?.firstOrNull()?.let { packageName -> process.pid to packageName }
+        }.toMap()
+
+        val playersByPackage = mutableMapOf<String, MutableList<AudioPlaybackConfigurationProxy>>()
+
         for (config in configs) {
             val proxy = AudioPlaybackConfigurationProxy(config)
+            val packageName = processPackages[proxy.clientPid]
+                ?: runCatching {
+                    packageManager.getPackagesForUid(proxy.clientUid)
+                }.getOrNull()?.let { packages ->
+                    packages.firstOrNull { apps.containsKey(it) } ?: packages.firstOrNull()
+                }
+                ?: continue
 
-            val pid = proxy.clientPid
-            val process = runningProcesses.find { process -> process.pid == pid } ?: continue
+            runCatching { getApp(packageName) }
+                .onFailure { Log.w(TAG, "Failed to resolve app $packageName", it) }
+                .getOrNull() ?: continue
 
-            val packageName = process.pkgList?.firstOrNull() ?: continue
-            val app = getApp(packageName) ?: continue
+            playersByPackage.getOrPut(packageName) { mutableListOf() }.add(proxy)
+        }
 
-            app.addPlayer(proxy)
+        for (app in apps.values) {
+            val players = playersByPackage[app.packageName]
+            if (players != null) {
+                app.replacePlayers(players)
+            } else {
+                app.clearPlayers()
+            }
         }
     }
 

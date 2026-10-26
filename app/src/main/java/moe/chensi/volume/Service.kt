@@ -27,12 +27,17 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.Toast
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.AbstractComposeView
@@ -54,10 +59,13 @@ import kotlinx.coroutines.launch
 import moe.chensi.volume.compose.AppVolumeList
 import moe.chensi.volume.compose.SystemVolumePanel
 import moe.chensi.volume.compose.VolumeChangeObserver
+import moe.chensi.volume.compose.VolumeKeyTargetSelector
+import moe.chensi.volume.data.App
 import moe.chensi.volume.system.ActivityTaskManagerProxy
 import moe.chensi.volume.ui.theme.VolumeManagerTheme
 import org.joor.Reflect
 import java.util.Objects
+import kotlin.math.roundToInt
 
 @SuppressLint("AccessibilityPolicy")
 class Service : AccessibilityService() {
@@ -115,29 +123,54 @@ class Service : AccessibilityService() {
         }
 
         private var repeatAdjustVolumeDirection = 0
+        private var repeatVolumeTarget: VolumeKeyTarget? = null
         private val repeatAdjustVolumeRunnable: Runnable = Runnable {
             adjustVolume()
             postDelayed(repeatAdjustVolumeRunnable, AUTO_REPEAT_DELAY)
         }
 
         private fun adjustVolume() {
-            manager.audioManager.adjustSuggestedStreamVolume(
-                repeatAdjustVolumeDirection, AudioManager.USE_DEFAULT_STREAM_TYPE, 0
-            )
-            VolumeChangeObserver.notifyVolumeChanged()
+            when (val target = repeatVolumeTarget ?: effectiveVolumeKeyTarget()) {
+                is VolumeKeyTarget.App -> {
+                    val app = manager.apps[target.packageName]
+                    if (app == null) {
+                        adjustSystemVolume()
+                    } else {
+                        val step = (app.volume * 20f).roundToInt()
+                        val nextStep = (step + repeatAdjustVolumeDirection).coerceIn(0, 20)
+                        if (nextStep != step) {
+                            app.volume = nextStep / 20f
+                        }
+                    }
+                }
+
+                VolumeKeyTarget.Media -> adjustSystemVolume()
+            }
             startIdleTimer()
+        }
+
+        private fun adjustSystemVolume() {
+            runCatching {
+                manager.audioManager.adjustSuggestedStreamVolume(
+                    repeatAdjustVolumeDirection, AudioManager.USE_DEFAULT_STREAM_TYPE, 0
+                )
+            }.onFailure {
+                Log.w(TAG, "Failed to adjust system volume", it)
+            }
+            VolumeChangeObserver.notifyVolumeChanged()
         }
 
         fun startRepeatAdjustVolume(direction: Int) {
             repeatAdjustVolumeDirection = direction
-            if (view != null) {
-                adjustVolume()
-            }
+            repeatVolumeTarget = effectiveVolumeKeyTarget()
+            removeCallbacks(repeatAdjustVolumeRunnable)
+            adjustVolume()
             postDelayed(repeatAdjustVolumeRunnable, AUTO_REPEAT_INITIAL_DELAY)
         }
 
         fun stopRepeatAdjustVolume() {
             removeCallbacks(repeatAdjustVolumeRunnable)
+            repeatVolumeTarget = null
             startIdleTimer()
         }
     }
@@ -207,6 +240,13 @@ class Service : AccessibilityService() {
 
             @Composable
             override fun Content() {
+                val hooksEnabled by app.systemVolumeButtonHooksEnabled.collectAsState()
+                val selectedApp = (volumeKeyTarget as? VolumeKeyTarget.App)
+                    ?.packageName
+                    ?.let { manager.apps[it] }
+                    ?.takeIf(::isVolumeKeyTargetApp)
+                val hasActiveApps = manager.apps.values.any(::isVolumeKeyTargetApp)
+
                 return VolumeManagerTheme {
                     Surface(
                         color = Color(1f, 1f, 1f, 0.3f),
@@ -214,26 +254,47 @@ class Service : AccessibilityService() {
                         shape = RoundedCornerShape(40f)
                     ) {
                         Column(
-                            modifier = Modifier.padding(20.dp, 16.dp)
+                            modifier = Modifier.padding(20.dp, 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            if (hooksEnabled) {
+                                VolumeKeyTargetSelector(
+                                    selectedApp = selectedApp,
+                                    hasActiveApps = hasActiveApps,
+                                    onSelectApp = this@Service::selectAppVolumeTarget,
+                                    onSelectMedia = this@Service::selectMediaVolumeTarget
+                                )
+                            }
+
                             AppVolumeList(
                                 apps = manager.apps.values,
                                 showAll = false,
-                                onChange = this@Service.handler::startIdleTimer
-                            ) {
-                                item("system_volume_panel") {
-                                    SystemVolumePanel(
-                                        audioManager = manager.audioManager,
-                                        notificationManagerProxy = manager.notificationManagerProxy,
-                                        showCallVolumeAlways = false,
-                                        applyVisibilityFilter = true,
-                                        allowVisibilityConfig = false,
-                                        isSliderVisible = manager::isSystemSliderVisible,
-                                        onSliderVisibilityChange = manager::setSystemSliderVisible,
-                                        onChange = this@Service.handler::startIdleTimer
-                                    )
+                                selectedVolumeKeyPackage = if (hooksEnabled) {
+                                    selectedApp?.packageName
+                                } else {
+                                    null
+                                },
+                                onSelectVolumeKeyApp = if (hooksEnabled) {
+                                    this@Service::selectVolumeKeyApp
+                                } else {
+                                    null
+                                },
+                                onChange = this@Service.handler::startIdleTimer,
+                                contentAfter = {
+                                    item("system_volume_panel") {
+                                        SystemVolumePanel(
+                                            audioManager = manager.audioManager,
+                                            notificationManagerProxy = manager.notificationManagerProxy,
+                                            showCallVolumeAlways = false,
+                                            applyVisibilityFilter = true,
+                                            allowVisibilityConfig = false,
+                                            isSliderVisible = manager::isSystemSliderVisible,
+                                            onSliderVisibilityChange = manager::setSystemSliderVisible,
+                                            onChange = this@Service.handler::startIdleTimer
+                                        )
+                                    }
                                 }
-                            }
+                            )
                         }
                     }
                 }
@@ -256,8 +317,85 @@ class Service : AccessibilityService() {
     private var view: View? = null
     private var viewVisible = false
     private var floatingButton: FloatingButton? = null
+    private var volumeKeyTarget by mutableStateOf<VolumeKeyTarget>(VolumeKeyTarget.Media)
+    private var mediaTargetPinned = false
+
+    private fun isVolumeKeyTargetApp(app: App): Boolean {
+        return app.isPlayer && !app.hidden && app.hasBeenPlayingRecently
+    }
+
+    private fun activeVolumeKeyApps(): List<App> {
+        return manager.apps.values.filter(::isVolumeKeyTargetApp)
+    }
+
+    private fun pickAppForVolumeKeys(): App? {
+        val candidates = activeVolumeKeyApps()
+        if (candidates.isEmpty()) {
+            return null
+        }
+
+        val foregroundPackage = runCatching {
+            activityTaskManager.getForegroundTask()?.app
+        }.getOrNull()
+
+        return candidates.firstOrNull {
+            it.packageName == foregroundPackage && it.isPlaying
+        } ?: candidates.filter { it.isPlaying }.maxByOrNull { it.lastPlayedAt }
+        ?: candidates.firstOrNull { it.packageName == foregroundPackage }
+        ?: candidates.maxByOrNull { it.lastPlayedAt }
+    }
+
+    private fun resolveVolumeKeyTarget() {
+        if (mediaTargetPinned) {
+            volumeKeyTarget = VolumeKeyTarget.Media
+            return
+        }
+
+        volumeKeyTarget = pickAppForVolumeKeys()?.let {
+            VolumeKeyTarget.App(it.packageName)
+        } ?: VolumeKeyTarget.Media
+    }
+
+    private fun effectiveVolumeKeyTarget(): VolumeKeyTarget {
+        val target = volumeKeyTarget
+        if (target is VolumeKeyTarget.App) {
+            val app = manager.apps[target.packageName]
+            if (app != null && isVolumeKeyTargetApp(app)) {
+                return target
+            }
+        }
+        return VolumeKeyTarget.Media
+    }
+
+    private fun selectAppVolumeTarget() {
+        val currentApp = (volumeKeyTarget as? VolumeKeyTarget.App)
+            ?.packageName
+            ?.let { manager.apps[it] }
+            ?.takeIf(::isVolumeKeyTargetApp)
+        val app = currentApp ?: pickAppForVolumeKeys() ?: return
+
+        mediaTargetPinned = false
+        volumeKeyTarget = VolumeKeyTarget.App(app.packageName)
+        handler.startIdleTimer()
+    }
+
+    private fun selectVolumeKeyApp(app: App) {
+        mediaTargetPinned = false
+        volumeKeyTarget = VolumeKeyTarget.App(app.packageName)
+        handler.startIdleTimer()
+    }
+
+    private fun selectMediaVolumeTarget() {
+        mediaTargetPinned = true
+        volumeKeyTarget = VolumeKeyTarget.Media
+        handler.startIdleTimer()
+    }
 
     private fun showView() {
+        if (!viewVisible && app.systemVolumeButtonHooksEnabled.value) {
+            resolveVolumeKeyTarget()
+        }
+
         if (view == null) {
             Log.i(TAG, "add view")
             // The view doesn't respond to input events if reused
@@ -444,11 +582,14 @@ class Service : AccessibilityService() {
 
     override fun onInterrupt() {
         Log.i(TAG, "onInterrupt")
+        handler.stopRepeatAdjustVolume()
     }
 
     override fun onDestroy() {
         Log.i(TAG, "onDestroy")
 
+        handler.stopRepeatAdjustVolume()
+        handler.removeCallbacksAndMessages(null)
         preferenceScope?.cancel()
         floatingButton?.hide()
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -483,38 +624,42 @@ class Service : AccessibilityService() {
         }
 
         if (!app.systemVolumeButtonHooksEnabled.value) {
-            if (event.action == KeyEvent.ACTION_UP) {
-                handler.stopRepeatAdjustVolume()
-            }
+            handler.stopRepeatAdjustVolume()
             return false
         }
 
         // Ignore if Shizuku is not ready
         if (manager.shizukuStatus != Manager.ShizukuStatus.Connected) {
+            handler.stopRepeatAdjustVolume()
             return false
         }
 
         // Check foreground task ignorance list
-        val task = activityTaskManager.getForegroundTask()
+        val task = runCatching { activityTaskManager.getForegroundTask() }
+            .onFailure { Log.w(TAG, "Failed to read foreground task", it) }
+            .getOrNull()
         Log.i(TAG, "onKeyEvent foreground task: $task")
 
         if (task != null) {
-            val app = manager.apps[task.app]
-            if (app != null && app.disableVolumeButtons) {
+            val foregroundApp = manager.apps[task.app]
+            if (foregroundApp != null && foregroundApp.disableVolumeButtons) {
+                handler.stopRepeatAdjustVolume()
                 return false
             }
         }
 
         when (event.action) {
             KeyEvent.ACTION_DOWN -> {
-                handler.startRepeatAdjustVolume(
-                    if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
-                        AudioManager.ADJUST_RAISE
-                    } else {
-                        AudioManager.ADJUST_LOWER
-                    }
-                )
-                showView()
+                if (event.repeatCount == 0) {
+                    showView()
+                    handler.startRepeatAdjustVolume(
+                        if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+                            AudioManager.ADJUST_RAISE
+                        } else {
+                            AudioManager.ADJUST_LOWER
+                        }
+                    )
+                }
             }
 
             KeyEvent.ACTION_UP -> handler.stopRepeatAdjustVolume()
